@@ -13,7 +13,11 @@ function log(...a) { console.log('[medasr]', ...a); }
 
 const { Asr } = require('./asr');
 const { injectText } = require('./inject');
+const { LlmSidecar } = require('./llm');
+const { cleanupTranscript } = require('./cleanup');
 const models = require('./models');
+
+let llm = null;   // cleanup LLM sidecar (only started when enabled + configured)
 
 let tray = null;
 let pill = null;         // small always-on-top status window (the "pill")
@@ -90,9 +94,22 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
       return { text: '' };
     }
     const t0 = Date.now();
-    const text = await asr.transcribe(pcm);
+    let text = await asr.transcribe(pcm);
     const ms = Date.now() - t0;
     log('transcript:', JSON.stringify(text), `(${ms}ms)`);
+
+    // Optional local cleanup pass (off by default). When enabled and the LLM
+    // sidecar is ready, replace the raw transcript with the corrected one.
+    // TODO(next): show raw-vs-cleaned diff + explicit accept instead of silent.
+    if (text && settings.cleanupEnabled && llm) {
+      try {
+        const c0 = Date.now();
+        const cleaned = await cleanupTranscript(llm, text);
+        log('cleaned:', JSON.stringify(cleaned), `(${Date.now() - c0}ms)`);
+        if (cleaned) text = cleaned;
+      } catch (e) { log('cleanup failed, using raw:', e && e.message || e); }
+    }
+
     setPill('done');
     setTimeout(() => setPill('idle'), 900);
     if (text && settings.autoInject) { log('injecting text…'); await injectText(text); log('inject done'); }
@@ -207,9 +224,27 @@ async function boot() {
     log('NO MODEL FOUND at expected locations');
     notify('No model found', 'Convert the model first — see RUNBOOK.md.');
   }
+  // Optional: start the cleanup LLM sidecar if enabled and configured.
+  if (settings.cleanupEnabled && settings.llmServerPath && settings.llmModelPath) {
+    try {
+      llm = new LlmSidecar({
+        serverPath: settings.llmServerPath,
+        modelPath: settings.llmModelPath,
+        mmprojPath: settings.llmMmprojPath || undefined,
+      });
+      await llm.start();
+      log('cleanup LLM ready');
+    } catch (e) {
+      log('cleanup LLM failed to start (continuing without it):', e && e.message || e);
+      llm = null;
+    }
+  }
+
   refreshTrayMenu();
   initAutoUpdate();
 }
+
+app.on('will-quit', () => { if (llm) llm.stop(); });
 
 if (process.platform === 'darwin' && app.dock) app.dock.hide(); // menubar app
 if (!app.requestSingleInstanceLock()) app.quit();
