@@ -21,21 +21,32 @@ function setState(state) {
   else { label.textContent = 'Idle'; sub.textContent = 'MedASR Dictate'; }
 }
 
+const rlog = (m) => { try { window.medasr.log(m); } catch (e) {} };
+
 async function startCapture() {
   collected = [];
-  stream = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-  });
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+  } catch (e) {
+    rlog('getUserMedia FAILED: ' + (e && e.message || e));
+    throw e;
+  }
   audioCtx = new AudioContext();
   nativeSR = audioCtx.sampleRate;
+  rlog('mic capture started @ ' + nativeSR + ' Hz');
   source = audioCtx.createMediaStreamSource(stream);
   // ScriptProcessor is deprecated but works everywhere without shipping a worklet file.
   processor = audioCtx.createScriptProcessor(4096, 1, 1);
+  let frames = 0;
   processor.onaudioprocess = (e) => {
     collected.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    frames++;
   };
   source.connect(processor);
   processor.connect(audioCtx.destination);
+  setTimeout(() => rlog('capturing… buffers so far: ' + frames), 500);
 }
 
 function stopCapture() {
@@ -80,6 +91,7 @@ window.medasr.onRecord(async (msg) => {
     try { await startCapture(); } catch (e) { setState('idle'); }
   } else if (msg.action === 'stop') {
     const pcm = stopCapture();
+    rlog('stop -> captured ' + pcm.length + ' samples @16k (' + (pcm.length / 16000).toFixed(2) + 's)');
     // Transfer the underlying buffer to main to avoid a copy.
     await window.medasr.sendAudio(pcm);
   }

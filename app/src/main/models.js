@@ -41,7 +41,7 @@ function settingsPath() {
 }
 
 const DEFAULTS = {
-  hotkey: process.platform === 'darwin' ? 'Command+Shift+Space' : 'Control+Shift+Space',
+  hotkey: 'Alt+Q',    // simple two-key toggle
   autoInject: true,   // type into focused app after transcribing
   playSounds: true,
 };

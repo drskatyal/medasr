@@ -6,8 +6,10 @@
 
 const path = require('path');
 const {
-  app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, Notification,
+  app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, Notification, session,
 } = require('electron');
+
+function log(...a) { console.log('[medasr]', ...a); }
 
 const { Asr } = require('./asr');
 const { injectText } = require('./inject');
@@ -43,6 +45,7 @@ function hidePill() { if (pill && pill.isVisible()) pill.hide(); }
 
 // ---------- recording lifecycle ----------
 function startRecording() {
+  log('hotkey -> start. modelReady =', modelReady);
   if (recording || !modelReady) {
     if (!modelReady) notify('Model not ready', 'Run the conversion pipeline first (see RUNBOOK.md).');
     return;
@@ -53,33 +56,46 @@ function startRecording() {
 }
 
 function stopRecording() {
+  log('hotkey -> stop');
   if (!recording) return;
   recording = false;
   showPill('transcribing');
   pill.webContents.send('record', { action: 'stop' });
 }
 
-function toggleRecording() { recording ? stopRecording() : startRecording(); }
+function toggleRecording() { log('hotkey fired'); recording ? stopRecording() : startRecording(); }
 
 // Renderer delivers the captured 16kHz mono PCM here.
 ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
   try {
     const pcm = float32Array instanceof Float32Array ? float32Array : new Float32Array(float32Array);
-    if (pcm.length < 1600) { hidePill(); return { text: '' }; } // < 0.1s -> ignore
+    log('audio-chunk received:', pcm.length, 'samples (', (pcm.length / 16000).toFixed(2), 's )');
+    if (pcm.length < 1600) {              // < 0.1s of audio
+      hidePill();
+      notify('No audio captured', 'The mic recorded nothing — check microphone permission for this app.');
+      log('PCM too short -> likely mic permission/capture issue');
+      return { text: '' };
+    }
     const t0 = Date.now();
     const text = await asr.transcribe(pcm);
     const ms = Date.now() - t0;
+    log('transcript:', JSON.stringify(text), `(${ms}ms)`);
     showPill('done');
     setTimeout(hidePill, 900);
-    if (text && settings.autoInject) await injectText(text);
+    if (text && settings.autoInject) { log('injecting text…'); await injectText(text); log('inject done'); }
     if (text) notify('Transcribed', `${text.slice(0, 80)}${text.length > 80 ? '…' : ''} (${ms}ms)`);
+    else notify('Empty transcript', 'Audio was captured but no speech was recognized.');
     return { text, ms };
   } catch (e) {
     hidePill();
+    log('ERROR in audio-chunk:', e);
     notify('Transcription failed', String(e && e.message || e));
     return { text: '', error: String(e) };
   }
 });
+
+// Renderer forwards its console/errors here so they show in the terminal.
+ipcMain.on('renderer-log', (_e, msg) => log('[renderer]', msg));
 
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_e, s) => {
@@ -93,8 +109,11 @@ ipcMain.handle('set-settings', (_e, s) => {
 function registerHotkey() {
   globalShortcut.unregisterAll();
   try {
-    globalShortcut.register(settings.hotkey, toggleRecording);
+    const ok = globalShortcut.register(settings.hotkey, toggleRecording);
+    log('hotkey registered:', settings.hotkey, '->', ok);
+    if (!ok) notify('Hotkey busy', `${settings.hotkey} is taken by another app. Change it in the tray menu.`);
   } catch (e) {
+    log('hotkey register error:', e);
     notify('Hotkey error', `Could not register ${settings.hotkey}`);
   }
 }
@@ -140,20 +159,29 @@ function initAutoUpdate() {
 
 // ---------- boot ----------
 async function boot() {
+  // Grant microphone (and other) permission requests from our own renderer.
+  session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(true));
+  session.defaultSession.setPermissionCheckHandler(() => true);
+
   createPill();
   buildTray();
   registerHotkey();
 
   const modelPath = models.resolveModelPath();
   const assetsDir = models.resolveAssetsDir();
+  log('modelPath =', modelPath);
+  log('assetsDir =', assetsDir);
   if (modelPath) {
     try {
       asr = await new Asr({ modelPath, assetsDir }).init();
       modelReady = true;
+      log('model loaded OK. Press', settings.hotkey, 'to dictate.');
     } catch (e) {
+      log('model load FAILED:', e);
       notify('Failed to load model', String(e && e.message || e));
     }
   } else {
+    log('NO MODEL FOUND at expected locations');
     notify('No model found', 'Convert the model first — see RUNBOOK.md.');
   }
   refreshTrayMenu();
