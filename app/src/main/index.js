@@ -23,7 +23,9 @@ let recording = false;
 let modelReady = false;
 
 // ---------- widget window (persistent mic orb, superwhisper-style) ----------
-const ORB_W = 84, ORB_H = 84;
+// Window is larger than the orb so the glow + expanding ring never get clipped
+// (that clipping was the visible "border"). The extra area is transparent.
+const ORB_W = 120, ORB_H = 120;
 
 function createPill() {
   pill = new BrowserWindow({
@@ -110,6 +112,13 @@ ipcMain.on('renderer-log', (_e, msg) => log('[renderer]', msg));
 
 // Clicking the mic orb toggles dictation (same as the hotkey).
 ipcMain.on('toggle-record', () => { log('orb clicked'); toggleRecording(); });
+
+// Dragging the orb moves the widget window.
+ipcMain.on('move-widget', (_e, { dx, dy }) => {
+  if (!pill) return;
+  const b = pill.getBounds();
+  pill.setBounds({ x: b.x + Math.round(dx), y: b.y + Math.round(dy), width: b.width, height: b.height });
+});
 
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_e, s) => {

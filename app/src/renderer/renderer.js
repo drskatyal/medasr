@@ -3,8 +3,24 @@
 
 const orb = document.getElementById('orb');
 
-// Click the orb to toggle dictation (in addition to the Alt+Q hotkey).
-orb.addEventListener('click', () => { try { window.medasr.toggle(); } catch (e) {} });
+// Drag the orb to move the widget; a click (no drag) toggles dictation.
+let dragFrom = null;
+let dragDist = 0;
+orb.addEventListener('mousedown', (e) => { dragFrom = { x: e.screenX, y: e.screenY }; dragDist = 0; });
+window.addEventListener('mousemove', (e) => {
+  if (!dragFrom) return;
+  const dx = e.screenX - dragFrom.x;
+  const dy = e.screenY - dragFrom.y;
+  if (dx || dy) {
+    dragDist += Math.abs(dx) + Math.abs(dy);
+    try { window.medasr.moveBy(dx, dy); } catch (err) {}
+    dragFrom = { x: e.screenX, y: e.screenY };
+  }
+});
+window.addEventListener('mouseup', () => {
+  if (dragFrom && dragDist < 5) { try { window.medasr.toggle(); } catch (e) {} }
+  dragFrom = null;
+});
 
 function setState(state) {
   const cls = state === 'recording' ? 'listening'

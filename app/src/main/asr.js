@@ -9,11 +9,14 @@ const { loadVocab, greedyCTC } = require('./decode');
 
 const SR = 16000;
 const ENC_FPS = 25;            // encoder frames per second (mel /4)
-// Long-audio chunking (per Grok's review of this bidirectional CTC Conformer):
-const CHUNK_BODY_S = 2.0;
-const CHUNK_OVERLAP_S = 0.8;
-const DISCARD_ENC_FRAMES = 14; // drop this many encoder frames each stitched edge
-const SINGLE_PASS_MAX_S = 24;  // below this, one pass; above, chunk+stitch
+// Long-audio chunking (only for very long recordings). Dictation clips are
+// short, so we default to SINGLE-PASS well past a normal utterance: one forward
+// pass has no chunk seams, hence no boundary word-doubling. The model handles
+// minutes of audio in one pass fine (RoPE max_position_embeddings=10000 frames
+// = ~6.5 min). Chunking is a fallback for recordings longer than that.
+const CHUNK_BODY_S = 8.0;
+const CHUNK_OVERLAP_S = 1.0;
+const SINGLE_PASS_MAX_S = 300; // 5 min single-pass; only longer clips chunk
 
 class Asr {
   constructor({ modelPath, assetsDir, threads }) {
@@ -57,6 +60,10 @@ class Asr {
   async _transcribeChunked(pcm) {
     const body = Math.round(CHUNK_BODY_S * SR);
     const ctx = Math.round(CHUNK_OVERLAP_S * SR);
+    // Discard exactly the encoder frames that correspond to the context we
+    // prepended/appended, so the kept region aligns to the body with no overlap
+    // (this is what prevents boundary word-doubling).
+    const discard = Math.round(CHUNK_OVERLAP_S * ENC_FPS);
     const stitched = [];
     let V = this.vocab.id_to_piece.length;
     for (let start = 0; start < pcm.length; start += body) {
@@ -66,8 +73,8 @@ class Asr {
       const { logits, T, V: v } = await this._logits(win);
       if (T === 0) continue;
       V = v;
-      const dLeft = start === 0 ? 0 : DISCARD_ENC_FRAMES;
-      const dRight = to >= pcm.length ? 0 : DISCARD_ENC_FRAMES;
+      const dLeft = from === 0 ? 0 : discard;
+      const dRight = to >= pcm.length ? 0 : discard;
       for (let t = dLeft; t < T - dRight; t++) {
         for (let k = 0; k < V; k++) stitched.push(logits[t * V + k]);
       }
