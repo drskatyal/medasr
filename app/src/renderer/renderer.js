@@ -24,7 +24,7 @@ window.addEventListener('mouseup', () => {
 
 function setState(state) {
   const cls = state === 'recording' ? 'listening'
-    : (state === 'transcribing' || state === 'done') ? state : '';
+    : (state === 'transcribing' || state === 'cleaning' || state === 'done') ? state : '';
   document.body.className = cls;
 }
 

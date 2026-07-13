@@ -15,9 +15,11 @@ const { Asr } = require('./asr');
 const { injectText } = require('./inject');
 const { LlmSidecar } = require('./llm');
 const { cleanupTranscript } = require('./cleanup');
+const engines = require('./engines');
 const models = require('./models');
 
-let llm = null;   // cleanup LLM sidecar (only started when enabled + configured)
+let llm = null;      // cleanup LLM sidecar (only started when enabled + configured)
+let settingsWin = null;
 
 let tray = null;
 let pill = null;         // small always-on-top status window (the "pill")
@@ -102,6 +104,7 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
     // sidecar is ready, replace the raw transcript with the corrected one.
     // TODO(next): show raw-vs-cleaned diff + explicit accept instead of silent.
     if (text && settings.cleanupEnabled && llm) {
+      setPill('cleaning');   // shows the "cleaning…" tooltip beside the mic
       try {
         const c0 = Date.now();
         const cleaned = await cleanupTranscript(llm, text);
@@ -137,6 +140,9 @@ ipcMain.on('move-widget', (_e, { dx, dy }) => {
   pill.setBounds({ x: b.x + Math.round(dx), y: b.y + Math.round(dy), width: b.width, height: b.height });
 });
 
+ipcMain.handle('get-engines', () => ({
+  stt: engines.STT_ENGINES, cleanup: engines.CLEANUP_MODELS,
+}));
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_e, s) => {
   settings = { ...settings, ...s };
@@ -177,7 +183,12 @@ function refreshTrayMenu() {
       label: 'Auto-type into focused app', type: 'checkbox', checked: settings.autoInject,
       click: (i) => { settings.autoInject = i.checked; models.saveSettings(settings); },
     },
+    {
+      label: `Cleaning: ${settings.cleanupEnabled ? (settings.cleanupModel || 'on') : 'off'}`,
+      enabled: false,
+    },
     { type: 'separator' },
+    { label: 'Settings…', click: openSettings },
     { label: 'Quit', click: () => app.quit() },
   ]);
   tray.setContextMenu(menu);
@@ -185,6 +196,21 @@ function refreshTrayMenu() {
 
 function notify(title, body) {
   if (Notification.isSupported()) new Notification({ title, body, silent: !settings.playSounds }).show();
+}
+
+// ---------- settings window ----------
+function openSettings() {
+  if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); return; }
+  settingsWin = new BrowserWindow({
+    width: 460, height: 640, title: 'MedASR Dictate — Settings', resizable: true,
+    webPreferences: {
+      preload: path.join(__dirname, '..', 'preload', 'index.js'),
+      contextIsolation: true, nodeIntegration: false,
+    },
+  });
+  settingsWin.setMenuBarVisibility(false);
+  settingsWin.loadFile(path.join(__dirname, '..', 'renderer', 'panel.html'));
+  settingsWin.on('closed', () => { settingsWin = null; });
 }
 
 // ---------- auto-update (optional; needs MEDASR_UPDATE_URL at build) ----------
@@ -206,6 +232,13 @@ async function boot() {
   createPill();
   buildTray();
   registerHotkey();
+
+  // STT engine selection: only MedASR is wired today; others fall back with a note.
+  const eng = engines.sttEngine(settings.sttEngine);
+  if (eng && !eng.implemented) {
+    log(`STT engine '${eng.id}' not installed yet -> using MedASR`);
+    notify('Using MedASR', `“${eng.label}” isn’t installed yet — see docs/MODELS.md. Falling back to MedASR.`);
+  }
 
   const modelPath = models.resolveModelPath();
   const assetsDir = models.resolveAssetsDir();

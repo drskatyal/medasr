@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline';" />
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px; padding: 20px 22px; background: #f6f7f9; color: #1a1d23; }
+    @media (prefers-color-scheme: dark) { body { background: #1b1d22; color: #e8eaed; } }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    .muted { opacity: .6; font-size: 12px; margin: 0 0 18px; }
+    .row { margin: 0 0 16px; }
+    label { display: block; font-weight: 600; margin-bottom: 6px; }
+    .hint { font-weight: 400; opacity: .6; font-size: 12px; margin-top: 4px; }
+    select, input[type=text] { width: 100%; padding: 8px 10px; border-radius: 8px;
+      border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font-size: 14px; }
+    .check { display: flex; align-items: center; gap: 8px; }
+    .check input { width: auto; }
+    details { margin-top: 8px; } summary { cursor: pointer; opacity: .8; }
+    .actions { margin-top: 22px; display: flex; gap: 10px; align-items: center; }
+    button { padding: 9px 16px; border-radius: 8px; border: 0; font-size: 14px; font-weight: 600;
+      cursor: pointer; background: #2563eb; color: #fff; }
+    #saved { opacity: 0; color: #16a34a; font-weight: 600; transition: opacity .2s; }
+    #saved.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <h1>MedASR Dictate — Settings</h1>
+  <p class="muted">All processing is on-device. Cleaning is optional.</p>
+
+  <div class="row">
+    <label for="stt">Primary input (speech-to-text)</label>
+    <select id="stt"></select>
+    <div class="hint" id="sttHint"></div>
+  </div>
+
+  <div class="row">
+    <label for="cleanup">Cleaning pipeline</label>
+    <select id="cleanup"></select>
+    <div class="hint" id="cleanupHint">Choose “Off” to minimise latency (raw transcript is typed instantly).</div>
+  </div>
+
+  <div class="row check">
+    <input type="checkbox" id="autoInject" />
+    <label for="autoInject" style="margin:0">Type into the focused app automatically</label>
+  </div>
+
+  <div class="row">
+    <label for="hotkey">Hotkey</label>
+    <input type="text" id="hotkey" placeholder="Alt+Q" />
+    <div class="hint">e.g. Alt+Q, Control+Shift+Space</div>
+  </div>
+
+  <details>
+    <summary>Advanced — model files (for cleaning / audio engines)</summary>
+    <div class="row" style="margin-top:12px">
+      <label for="serverPath">llama-server binary path</label>
+      <input type="text" id="serverPath" placeholder="/path/to/llama-server" />
+    </div>
+    <div class="row">
+      <label for="modelPath">Cleanup model GGUF path</label>
+      <input type="text" id="modelPath" placeholder="/path/to/LFM2.5-8B-A1B-Q4_K_M.gguf" />
+      <div class="hint">See docs/MODELS.md for where to download each model.</div>
+    </div>
+  </details>
+
+  <div class="actions">
+    <button id="save">Save</button>
+    <span id="saved">Saved ✓ — restart to apply model changes</span>
+  </div>
+
+  <script src="./panel.js"></script>
+</body>
+</html>

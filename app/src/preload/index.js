@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('medasr', {
   sendAudio: (float32) => ipcRenderer.invoke('audio-chunk', float32),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   setSettings: (s) => ipcRenderer.invoke('set-settings', s),
+  getEngines: () => ipcRenderer.invoke('get-engines'),
   log: (msg) => ipcRenderer.send('renderer-log', String(msg)),
   toggle: () => ipcRenderer.send('toggle-record'),
   moveBy: (dx, dy) => ipcRenderer.send('move-widget', { dx, dy }),
