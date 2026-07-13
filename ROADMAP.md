@@ -5,14 +5,25 @@ actual model and repo. See `LICENSING_NOTES.md` for the Phase 5 blocker.
 
 ## Status
 
+All code below is **written, syntax-checked, and unit-tested where runnable
+without the gated weights** (FFT/log-mel, CTC decode, and WER math all pass).
+Anything that needs the actual model runs on your machine — see `RUNBOOK.md`.
+
 | Phase | State | Notes |
 |-------|-------|-------|
-| 0 — Baseline | **Harness built** (`baseline/`) | Code complete & WER math validated. *Execution requires HF-gated weights + torch/CPU on your machine* — cannot run in the CI/web container (no GPU, no HF token). Run locally and commit `baseline/results.json`. |
-| 1 — Quantization | Not started | See correction #2 below. |
-| 2 — ONNX conversion | Not started | See correction #1 below — this is the real risk area. |
-| 3 — Streaming tuning | Not started | Reuse chunk/stride knobs surfaced in `run_baseline.py`. |
-| 4 — Electron app | Not started | — |
+| 0 — Baseline | **Harness built** (`baseline/`) | WER math validated. Run locally, commit `baseline/results.json`. |
+| 1 — Quantization | **Scripts built** (`convert/quantize.py`) | Dynamic int8 (ship) + static QDQ (production) paths, per Grok's Conformer review. |
+| 2 — ONNX conversion | **Scripts built** (`convert/export_onnx.py`, `_load.py`, `verify_*`) | Export informed by reading the real `Lasr*` source: RoPE/depthwise-conv/BN/LN — all ONNX-friendly. Hub-kernel disable + eager + explicit-pad handled. |
+| 3 — Streaming tuning | **Harness built** (`streaming/stream_harness.py`) | Chunk+overlap+logit-stitch grid; Grok's 2.0s body / 0.8s overlap / discard-14 defaults. |
+| 4 — Electron app | **Scaffold built** (`app/`) | Wispr-Flow-style: global hotkey → mic → on-device ONNX → type-anywhere. Pure-JS log-mel + CTC decode (unit-tested). Not yet run in a real Electron process (needs local `npm install`). |
+| — Distribution | **Server built** (`server/`) | Railway release + `electron-updater` feed server; token-protected uploads. |
 | 5 — Open source | **Blocked / re-scope** | Model weights are HAI-DEF, not Apache 2.0. See `LICENSING_NOTES.md`. |
+
+### What's verified in-container vs. needs your machine
+- ✅ Verified here: JS syntax (all files), FFT/log-mel correctness (tone lands in
+  right mel band), CTC decode (collapse/blank/space), WER math.
+- 🖥️ Needs local run (gated weights + torch + Electron): ONNX export, quantization,
+  parity, onnxruntime-node load, the Electron app end-to-end, installer builds.
 
 ## Corrections to the original plan (important)
 

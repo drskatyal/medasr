@@ -1,0 +1,49 @@
+{
+  "name": "medasr-dictate",
+  "productName": "MedASR Dictate",
+  "version": "0.1.0",
+  "description": "Local, private medical dictation. Push a hotkey, speak, and it types into any app. Powered by an on-device quantized MedASR model via onnxruntime-node.",
+  "main": "src/main/index.js",
+  "author": "",
+  "license": "Apache-2.0",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux",
+    "publish": "electron-builder --publish always"
+  },
+  "dependencies": {
+    "onnxruntime-node": "^1.20.1"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-updater": "^6.3.9"
+  },
+  "build": {
+    "appId": "com.medasr.dictate",
+    "productName": "MedASR Dictate",
+    "files": ["src/**/*", "assets/**/*", "!**/*.md"],
+    "extraResources": [
+      { "from": "../models", "to": "models", "filter": ["*.onnx"] }
+    ],
+    "asarUnpack": ["**/node_modules/onnxruntime-node/**"],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"],
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "win": { "target": ["nsis"] },
+    "linux": { "target": ["AppImage"], "category": "Utility" },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "${env.MEDASR_UPDATE_URL}"
+      }
+    ]
+  }
+}

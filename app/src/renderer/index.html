@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline';" />
+  <style>
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+      font-family: -apple-system, "Segoe UI", Roboto, sans-serif; user-select: none; }
+    .pill {
+      display: flex; align-items: center; gap: 12px;
+      margin: 12px; padding: 14px 18px; border-radius: 18px;
+      background: rgba(20, 22, 28, 0.92); color: #f2f4f8;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4); -webkit-app-region: drag;
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; background: #4b5563; flex: none; }
+    .dot.rec { background: #ef4444; animation: pulse 1s infinite; }
+    .dot.busy { background: #f59e0b; animation: pulse 0.8s infinite; }
+    .dot.done { background: #22c55e; }
+    .label { font-size: 14px; font-weight: 600; }
+    .sub { font-size: 11px; opacity: 0.6; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  </style>
+</head>
+<body>
+  <div class="pill">
+    <div id="dot" class="dot"></div>
+    <div>
+      <div id="label" class="label">Idle</div>
+      <div id="sub" class="sub">MedASR Dictate</div>
+    </div>
+  </div>
+  <script src="./renderer.js"></script>
+</body>
+</html>
