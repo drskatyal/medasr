@@ -1,9 +1,16 @@
 'use strict';
 // Renderer: mic capture + 16kHz mono resample, driven by main-process messages.
 
-const dot = document.getElementById('dot');
-const label = document.getElementById('label');
-const sub = document.getElementById('sub');
+const orb = document.getElementById('orb');
+
+// Click the orb to toggle dictation (in addition to the Alt+Q hotkey).
+orb.addEventListener('click', () => { try { window.medasr.toggle(); } catch (e) {} });
+
+function setState(state) {
+  const cls = state === 'recording' ? 'listening'
+    : (state === 'transcribing' || state === 'done') ? state : '';
+  document.body.className = cls;
+}
 
 const TARGET_SR = 16000;
 let audioCtx = null;
@@ -12,14 +19,6 @@ let source = null;
 let processor = null;
 let collected = [];   // Float32Array chunks at the AudioContext's native rate
 let nativeSR = 48000;
-
-function setState(state) {
-  dot.className = 'dot';
-  if (state === 'recording') { dot.classList.add('rec'); label.textContent = 'Listening…'; sub.textContent = 'Press hotkey again to finish'; }
-  else if (state === 'transcribing') { dot.classList.add('busy'); label.textContent = 'Transcribing…'; sub.textContent = ''; }
-  else if (state === 'done') { dot.classList.add('done'); label.textContent = 'Done'; sub.textContent = 'Typed into your app'; }
-  else { label.textContent = 'Idle'; sub.textContent = 'MedASR Dictate'; }
-}
 
 const rlog = (m) => { try { window.medasr.log(m); } catch (e) {} };
 

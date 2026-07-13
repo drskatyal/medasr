@@ -9,4 +9,5 @@ contextBridge.exposeInMainWorld('medasr', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   setSettings: (s) => ipcRenderer.invoke('set-settings', s),
   log: (msg) => ipcRenderer.send('renderer-log', String(msg)),
+  toggle: () => ipcRenderer.send('toggle-record'),
 });

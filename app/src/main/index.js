@@ -6,7 +6,7 @@
 
 const path = require('path');
 const {
-  app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, Notification, session,
+  app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, Notification, session, screen,
 } = require('electron');
 
 function log(...a) { console.log('[medasr]', ...a); }
@@ -22,26 +22,37 @@ let settings = models.loadSettings();
 let recording = false;
 let modelReady = false;
 
-// ---------- windows ----------
+// ---------- widget window (persistent mic orb, superwhisper-style) ----------
+const ORB_W = 84, ORB_H = 84;
+
 function createPill() {
   pill = new BrowserWindow({
-    width: 260, height: 92, show: false, frame: false, resizable: false,
-    alwaysOnTop: true, skipTaskbar: true, transparent: true, focusable: false,
+    width: ORB_W, height: ORB_H, show: false, frame: false, resizable: false,
+    movable: true, alwaysOnTop: true, skipTaskbar: true, transparent: true,
+    hasShadow: false, focusable: false, backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'index.js'),
-      contextIsolation: true, nodeIntegration: false,
+      contextIsolation: true, nodeIntegration: false, backgroundThrottling: false,
     },
   });
   pill.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   pill.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // Park it bottom-centre of the primary display and keep it visible (no
+  // show/hide cycling -> no flicker). State is conveyed by orb colour only.
+  pill.once('ready-to-show', () => {
+    const wa = screen.getPrimaryDisplay().workArea;
+    pill.setBounds({
+      x: Math.round(wa.x + wa.width / 2 - ORB_W / 2),
+      y: Math.round(wa.y + wa.height - ORB_H - 24),
+      width: ORB_W, height: ORB_H,
+    });
+    pill.setAlwaysOnTop(true, 'screen-saver');
+    pill.showInactive();
+  });
 }
 
-function showPill(state) {
-  if (!pill) return;
-  pill.webContents.send('state', state);
-  if (!pill.isVisible()) pill.showInactive();
-}
-function hidePill() { if (pill && pill.isVisible()) pill.hide(); }
+// State is just an orb colour change; the window stays put.
+function setPill(state) { if (pill) pill.webContents.send('state', state); }
 
 // ---------- recording lifecycle ----------
 function startRecording() {
@@ -51,7 +62,7 @@ function startRecording() {
     return;
   }
   recording = true;
-  showPill('recording');
+  setPill('recording');
   pill.webContents.send('record', { action: 'start' });
 }
 
@@ -59,7 +70,7 @@ function stopRecording() {
   log('hotkey -> stop');
   if (!recording) return;
   recording = false;
-  showPill('transcribing');
+  setPill('transcribing');
   pill.webContents.send('record', { action: 'stop' });
 }
 
@@ -71,7 +82,7 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
     const pcm = float32Array instanceof Float32Array ? float32Array : new Float32Array(float32Array);
     log('audio-chunk received:', pcm.length, 'samples (', (pcm.length / 16000).toFixed(2), 's )');
     if (pcm.length < 1600) {              // < 0.1s of audio
-      hidePill();
+      setPill('idle');
       notify('No audio captured', 'The mic recorded nothing — check microphone permission for this app.');
       log('PCM too short -> likely mic permission/capture issue');
       return { text: '' };
@@ -80,14 +91,14 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
     const text = await asr.transcribe(pcm);
     const ms = Date.now() - t0;
     log('transcript:', JSON.stringify(text), `(${ms}ms)`);
-    showPill('done');
-    setTimeout(hidePill, 900);
+    setPill('done');
+    setTimeout(() => setPill('idle'), 900);
     if (text && settings.autoInject) { log('injecting text…'); await injectText(text); log('inject done'); }
     if (text) notify('Transcribed', `${text.slice(0, 80)}${text.length > 80 ? '…' : ''} (${ms}ms)`);
     else notify('Empty transcript', 'Audio was captured but no speech was recognized.');
     return { text, ms };
   } catch (e) {
-    hidePill();
+    setPill('idle');
     log('ERROR in audio-chunk:', e);
     notify('Transcription failed', String(e && e.message || e));
     return { text: '', error: String(e) };
@@ -96,6 +107,9 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
 
 // Renderer forwards its console/errors here so they show in the terminal.
 ipcMain.on('renderer-log', (_e, msg) => log('[renderer]', msg));
+
+// Clicking the mic orb toggles dictation (same as the hotkey).
+ipcMain.on('toggle-record', () => { log('orb clicked'); toggleRecording(); });
 
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_e, s) => {
