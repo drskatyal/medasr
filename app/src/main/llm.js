@@ -11,7 +11,7 @@ function log(...a) { console.log('[llm]', ...a); }
 class LlmEngine {
   constructor({ modelPath, ctxSize } = {}) {
     this.modelPath = modelPath;
-    this.ctxSize = ctxSize || 4096;
+    this.ctxSize = ctxSize || 8192;   // headroom for a long report (input + edited output)
     this._llama = null;
     this._model = null;
     this._LlamaChatSession = null;
@@ -40,7 +40,7 @@ class LlmEngine {
       });
       return await session.prompt(user, { temperature, maxTokens });
     } finally {
-      try { await context.dispose(); } catch (e) {}
+      try { await context.dispose(); } catch (e) { log('ctx dispose err:', e && e.message || e); }
     }
   }
 
