@@ -26,8 +26,10 @@ function downloadFile(url, dest, { headers = {}, onProgress, redirectsLeft = 5 }
     const partial = dest + '.part';
     try { received = fs.existsSync(partial) ? fs.statSync(partial).size : 0; } catch (e) {}
 
-    const reqHeaders = { ...headers, 'User-Agent': 'MedASR-Dictate' };
+    const reqHeaders = { ...headers, 'User-Agent': 'FlowRadVR' };
     if (received > 0) reqHeaders.Range = `bytes=${received}-`;
+    // Node's http throws on a header whose value is undefined — strip any.
+    for (const k of Object.keys(reqHeaders)) if (reqHeaders[k] == null) delete reqHeaders[k];
 
     const req = request(url, reqHeaders, (res) => {
       // Redirect
@@ -36,7 +38,10 @@ function downloadFile(url, dest, { headers = {}, onProgress, redirectsLeft = 5 }
         if (redirectsLeft <= 0) return reject(new Error('too many redirects'));
         const next = new URL(res.headers.location, url).toString();
         const crossHost = new URL(next).hostname !== new URL(url).hostname;
-        const fwd = crossHost ? { ...headers, Authorization: undefined } : headers;
+        // On a cross-host redirect (e.g. HF/GitHub -> signed CDN) DROP the auth
+        // header entirely — don't set it to undefined (Node would throw).
+        const fwd = { ...headers };
+        if (crossHost) delete fwd.Authorization;
         return resolve(downloadFile(next, dest, { headers: fwd, onProgress, redirectsLeft: redirectsLeft - 1 }));
       }
       if (res.statusCode === 416) {            // range not satisfiable -> already complete
