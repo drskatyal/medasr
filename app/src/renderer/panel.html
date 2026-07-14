@@ -137,20 +137,16 @@
   <main>
     <!-- ===================== MODELS ===================== -->
     <section class="panel active" id="tab-models">
-      <div class="section-label">Status</div>
+      <div class="section-label">Speech-to-text engine</div>
+      <div class="card" id="sttList"></div>
+
+      <div class="section-label">Cleaning — optional, corrects &amp; formats</div>
+      <div class="card" id="cleanList"></div>
+      <div class="hint" style="margin:-6px 2px 16px">Nothing downloads on its own — pick a model and press <b>Download</b>. Heavier
+        models are more accurate but slower/larger; if one is too big for your PC it may fail to load, so start small.</div>
+
+      <div class="section-label">Other</div>
       <div class="card">
-        <div class="item">
-          <div class="item-head"><span class="item-title">Input · speech-to-text</span>
-            <button class="btn" id="btnDlStt" style="display:none">Set up</button></div>
-          <div class="item-sub" id="stStt">…</div>
-          <div class="pbar" id="pbStt"><i></i><em>0%</em></div>
-        </div>
-        <div class="item">
-          <div class="item-head"><span class="item-title">Cleaning · corrects &amp; formats</span>
-            <button class="btn" id="btnDlClean" style="display:none">Download</button></div>
-          <div class="item-sub" id="stClean">…</div>
-          <div class="pbar" id="pbClean"><i></i><em>0%</em></div>
-        </div>
         <div class="item">
           <div class="item-head"><span class="item-title">Real-time · voice activity (VAD)</span>
             <button class="btn" id="btnDlVad" style="display:none">Download</button></div>
@@ -164,19 +160,19 @@
           <div class="pbar" id="pbCmd"><i></i><em>0%</em></div>
         </div>
       </div>
-
-      <div class="section-label">Choose engines</div>
-      <div class="field">
-        <label for="stt">Primary input (speech-to-text)</label>
-        <select id="stt"></select>
-        <div class="hint" id="sttHint"></div>
-      </div>
-      <div class="field">
-        <label for="cleanup">Cleaning pipeline</label>
-        <select id="cleanup"></select>
-        <div class="hint">Choose “Off” for the fastest path (raw transcript typed instantly).</div>
-      </div>
     </section>
+    <style>
+      .mrow2 { display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-top:1px solid var(--border); }
+      .mrow2:first-child { border-top:0; }
+      .mrow2 > input[type=radio] { margin:2px 0 0; width:16px; height:16px; accent-color:var(--accent); flex:none; }
+      .mrow2-body { flex:1; min-width:0; }
+      .mrow2-title { font-weight:600; display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+      .mrow2-sub { font-size:12px; color:var(--muted); margin-top:2px; line-height:1.4; }
+      .badge { font-size:10px; font-weight:700; padding:1px 6px; border-radius:20px; background:var(--accent-weak); color:var(--accent); }
+      .badge.ok { background:rgba(22,163,74,.14); color:var(--success); }
+      .badge.warn { background:rgba(217,119,6,.16); color:var(--warn); }
+      .mrow2 .btn { margin-top:1px; }
+    </style>
 
     <!-- ===================== DICTATION ===================== -->
     <section class="panel" id="tab-dictation">

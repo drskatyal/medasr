@@ -40,6 +40,7 @@ let sttNote = '';              // e.g. fallback reason
 let voskCmd = null;            // always-on command listener (Vosk)
 let cmdStatus = 'off';         // 'off'|'downloading …'|'loading'|'ready'|'error: …'
 let sttDlStatus = '';          // STT engine download progress ('', 'downloading N%', 'installed', 'error: …')
+let dl = { id: null, pct: 0 }; // the model currently downloading (any kind) — for the per-model list UI
 
 function cleaningStatus() {
   if (!settings.cleanupEnabled) return 'off';
@@ -397,31 +398,48 @@ ipcMain.handle('get-status', () => {
   try { modelsDir = provision.modelsDir(); } catch (e) {}
   let cleaning = 'off';
   try { cleaning = cleaningStatus(); } catch (e) {}
+  // Per-model install state so the UI can show an inline list (each model with
+  // its own size, status, and Download button) instead of a shared bar.
+  const installed = {};
+  try { for (const m of engines.CLEANUP_MODELS) if (m.id !== 'off') installed[m.id] = provision.isInstalled(m.id); } catch (e) {}
+  try { for (const en of engines.STT_ENGINES) installed[en.id] = provision.isSttInstalled(en.id); } catch (e) {}
   return {
     sttSelected: settings.sttEngine, sttActive, sttNote, modelReady,
-    cleaning, realtime: !!settings.realtimeMode, vad: vadStatus,
+    cleaning,
+    cleanSelected: settings.cleanupEnabled ? settings.cleanupModel : 'off',
+    cleanActive: (settings.cleanupEnabled && llmState === 'ready') ? settings.cleanupModel : null,
+    cleanState: llmState,
+    realtime: !!settings.realtimeMode, vad: vadStatus,
     commands: settings.alwaysOnCommands ? cmdStatus : 'off',
     sttInstallable, sttInstalled, sttDl: sttDlStatus, modelsDir,
+    installed, dl,
   };
 });
 
-// "Set up / Download now" buttons in the settings window.
-ipcMain.handle('setup', async (_e, what) => {
+// Download/enable a specific model. Explicit only — nothing downloads on its
+// own. `id` (optional) selects which model; else the current setting is used.
+ipcMain.handle('setup', async (_e, what, id) => {
+  if (dl.id) return { ok: false, error: 'a download is already in progress' };  // one at a time
   try {
-    if (what === 'cleanup') { settings.cleanupEnabled = true; models.saveSettings(settings); await ensureCleanupLlm(); }
-    else if (what === 'vad') { await ensureRealtime(); }
+    if (what === 'cleanup') {
+      const mid = id || settings.cleanupModel || 'qwen3-0.6b';
+      settings.cleanupModel = mid; settings.cleanupEnabled = true; models.saveSettings(settings);
+      await ensureCleanupLlm();     // downloads settings.cleanupModel if missing, then loads
+    } else if (what === 'vad') { await ensureRealtime(); }
     else if (what === 'commands') { settings.alwaysOnCommands = true; models.saveSettings(settings); await ensureCommandListener(); }
     else if (what === 'stt') {
-      const id = settings.sttEngine;
-      if (!provision.STT_CATALOG[id]) return { ok: false, error: 'no download for this engine' };
-      if (sttDlStatus.startsWith('downloading')) return { ok: true };  // already running
-      sttDlStatus = 'downloading 0%';
-      await provision.ensureSttModel(id, { onProgress: ({ pct }) => { sttDlStatus = `downloading ${pct}%`; } });
+      const eid = id || settings.sttEngine;
+      if (!provision.STT_CATALOG[eid]) return { ok: false, error: 'no download for this engine' };
+      settings.sttEngine = eid; models.saveSettings(settings);
+      dl = { id: eid, pct: 0 }; sttDlStatus = 'downloading 0%';
+      await provision.ensureSttModel(eid, { onProgress: ({ pct }) => { dl = { id: eid, pct }; sttDlStatus = `downloading ${pct}%`; } });
+      dl = { id: null, pct: 0 };
       await loadAsr();               // switch to the freshly-downloaded engine
       sttDlStatus = 'installed';     // only after both extract AND load succeed
     }
     return { ok: true };
   } catch (e) {
+    dl = { id: null, pct: 0 };
     if (sttDlStatus.startsWith('downloading')) sttDlStatus = 'error: ' + String(e && e.message || e).split('\n')[0];
     return { ok: false, error: String(e && e.message || e) };
   }
@@ -437,16 +455,16 @@ ipcMain.handle('set-settings', (_e, s) => {
   registerHotkey();
   setFocusLock(settings.lockFocus);
   refreshTrayMenu();
-  // Reload the STT engine if the user switched it.
+  // Reload the STT engine if the user switched it (only loads if its files are
+  // already present; loadAsr falls back to MedASR otherwise — no auto-download).
   if (settings.sttEngine !== prevStt) loadAsr();
-  // Pre-load VAD when real-time is turned on, so errors surface now (in the
-  // Status panel) rather than silently on the first hotkey press.
+  // Saving does NOT download big models — only LOAD what's already installed.
+  // Missing models are fetched only when the user clicks Download. (VAD is ~2 MB
+  // and required for real-time, so it may fetch on first real-time use.)
   if (settings.realtimeMode && !vad) ensureRealtime().catch(() => {});
-  // If the user just turned cleaning on, provision + load the model now.
-  if (settings.cleanupEnabled && !llm) ensureCleanupLlm();
+  if (settings.cleanupEnabled && !llm && provision.isInstalled(settings.cleanupModel)) ensureCleanupLlm();
   if (!settings.cleanupEnabled && llm) { llm.stop(); llm = null; llmState = 'off'; refreshTrayMenu(); }
-  // Toggle the always-on command listener to match the setting.
-  if (settings.alwaysOnCommands && !voskCmd) ensureCommandListener();
+  if (settings.alwaysOnCommands && !voskCmd && provision.isVoskInstalled()) ensureCommandListener();
   if (!settings.alwaysOnCommands && voskCmd) stopCommandListener();
   return settings;
 });
@@ -538,11 +556,10 @@ async function boot() {
   provision.setModelsDir(settings.modelsDirOverride);   // honor a custom models location
 
   await loadAsr();
-  // Cleanup LLM: auto-download the selected model's weights on first use and
-  // cache them, then load the bundled engine. All off unless cleanup is enabled.
-  if (settings.cleanupEnabled) ensureCleanupLlm();
-  // Always-on command listener (hands-free "start/stop dictation" + commands).
-  if (settings.alwaysOnCommands) ensureCommandListener();
+  // NEVER auto-download on launch. Only LOAD models that are already installed;
+  // anything missing waits for an explicit Download click in Settings.
+  if (settings.cleanupEnabled && provision.isInstalled(settings.cleanupModel)) ensureCleanupLlm();
+  if (settings.alwaysOnCommands && provision.isVoskInstalled()) ensureCommandListener();
 
   refreshTrayMenu();
   initAutoUpdate();
@@ -606,20 +623,17 @@ async function ensureCleanupLlm() {
     let modelPath = settings.llmModelPath;   // explicit override wins
     if (!modelPath || !require('fs').existsSync(modelPath)) {
       if (!provision.isInstalled(id)) {
-        llmState = 'downloading'; llmPct = 0; refreshTrayMenu();
-        setPill('downloading', 0);
-        notify('Downloading cleaning model', `${id} — one-time (a few GB), cached after. Watch the mic orb / tray for progress.`);
+        // Progress shows in Settings only — NOT under the mic orb.
+        llmState = 'downloading'; llmPct = 0; dl = { id, pct: 0 }; refreshTrayMenu();
         let lastPct = -1;
         modelPath = await provision.ensureModel(id, {
           hfToken: process.env.HF_TOKEN,
           onProgress: ({ pct }) => {
-            llmPct = pct;
-            if (pct !== lastPct && pct % 5 === 0) {
-              lastPct = pct; log(`download ${id}: ${pct}%`); setPill('downloading', pct); refreshTrayMenu();
-            }
+            llmPct = pct; dl = { id, pct };
+            if (pct !== lastPct && pct % 5 === 0) { lastPct = pct; log(`download ${id}: ${pct}%`); }
           },
         });
-        setPill('idle');
+        dl = { id: null, pct: 0 };
       } else {
         modelPath = provision.localPathFor(id);
       }
@@ -628,9 +642,8 @@ async function ensureCleanupLlm() {
     llm = await new LlmEngine({ modelPath }).load();
     llmState = 'ready'; refreshTrayMenu();
     log('cleanup LLM ready:', id);
-    notify('Cleaning ready', `${id} is loaded — dictation will be auto-cleaned.`);
   } catch (e) {
-    setPill('idle');
+    dl = { id: null, pct: 0 };
     llmState = 'off'; refreshTrayMenu();
     log('cleanup LLM unavailable (continuing without it):', e && e.message || e);
     notify('Cleaning unavailable', 'Could not load the cleaning model — dictation still works. See docs/MODELS.md.');

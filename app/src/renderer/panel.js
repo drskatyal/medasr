@@ -62,18 +62,60 @@ async function init() {
     if (!el.children.length) el.innerHTML = '<div class="item-sub" style="padding:10px 0">Command list unavailable.</div>';
   })();
 
-  fillSelect($('stt'), engines.stt, settings.sttEngine,
-    (e) => e.label + (e.implemented ? '' : '  (needs setup)'));
-  // The dropdown shows the true state: 'Off' unless cleaning is actually enabled.
-  fillSelect($('cleanup'), engines.cleanup, settings.cleanupEnabled ? (settings.cleanupModel || 'off') : 'off');
+  // ---- inline model lists: each model is a selectable row with its note, a
+  // Download button, and its own progress. NOTHING here downloads on its own. ----
+  const rowsStt = {}, rowsClean = {};
+  const sttInstallable = (it) => it.runtime === 'parakeet-tdt';
+  function buildRow(container, it, group, { installable, isOff }) {
+    const row = document.createElement('div'); row.className = 'mrow2';
+    const radio = document.createElement('input'); radio.type = 'radio'; radio.name = group; radio.value = it.id;
+    const body = document.createElement('div'); body.className = 'mrow2-body';
+    const title = document.createElement('div'); title.className = 'mrow2-title';
+    const name = document.createElement('span'); name.textContent = it.label; title.appendChild(name);
+    const badge = document.createElement('span'); badge.className = 'badge'; badge.style.display = 'none'; title.appendChild(badge);
+    body.appendChild(title);
+    if (it.note) { const sub = document.createElement('div'); sub.className = 'mrow2-sub'; sub.textContent = it.note; body.appendChild(sub); }
+    const pbar = document.createElement('div'); pbar.className = 'pbar'; pbar.innerHTML = '<i></i><em>0%</em>'; body.appendChild(pbar);
+    row.appendChild(radio); row.appendChild(body);
+    let btn = null;
+    if (installable && !isOff) {
+      btn = document.createElement('button'); btn.className = 'btn'; btn.textContent = 'Download';
+      btn.addEventListener('click', async () => {
+        btn.textContent = 'Starting…'; btn.disabled = true;
+        radio.checked = true;
+        const r = await window.medasr.setup(group === 'sttSel' ? 'stt' : 'cleanup', it.id);
+        if (r && r.ok === false) { badge.style.display = ''; badge.className = 'badge warn'; badge.textContent = (r.error || 'error').slice(0, 44); }
+      });
+      row.appendChild(btn);
+    }
+    container.appendChild(row);
+    return { badge, pbar, btn, installable, isOff };
+  }
+  for (const it of engines.stt) rowsStt[it.id] = buildRow($('sttList'), it, 'sttSel', { installable: sttInstallable(it), isOff: false });
+  for (const it of engines.cleanup) rowsClean[it.id] = buildRow($('cleanList'), it, 'cleanSel', { installable: it.id !== 'off', isOff: it.id === 'off' });
+  const sttRadio = document.querySelector(`input[name=sttSel][value="${settings.sttEngine}"]`);
+  if (sttRadio) sttRadio.checked = true;
+  const initClean = settings.cleanupEnabled ? (settings.cleanupModel || 'off') : 'off';
+  const cleanRadio = document.querySelector(`input[name=cleanSel][value="${initClean}"]`);
+  if (cleanRadio) cleanRadio.checked = true;
+  document.querySelectorAll('input[name=cleanSel], input[name=sttSel]').forEach((r) => r.addEventListener('change', () => refreshStatus()));
 
-  const sttHint = () => {
-    const e = engines.stt.find((x) => x.id === $('stt').value);
-    $('sttHint').textContent = e ? (e.implemented ? e.note : '⚠ ' + e.note + '  Falls back to MedASR until installed.') : '';
-  };
-  $('stt').addEventListener('change', () => { sttHint(); refreshStatus(); });
-  $('cleanup').addEventListener('change', () => { refreshStatus(); });
-  sttHint();
+  function setRowState(r, st) {
+    if (!r) return;
+    setBarEl(r.pbar, st.downloading ? ('downloading ' + (st.pct || 0) + '%') : (st.loading ? 'loading' : ''), !!(st.downloading || st.loading));
+    r.badge.style.display = '';
+    if (st.downloading) r.badge.style.display = 'none';
+    else if (st.active) { r.badge.className = 'badge ok'; r.badge.textContent = 'active'; }
+    else if (st.loading) { r.badge.className = 'badge'; r.badge.textContent = 'loading…'; }
+    else if (st.installed) { r.badge.className = 'badge'; r.badge.textContent = 'installed'; }
+    else if (st.notAvailable) { r.badge.className = 'badge warn'; r.badge.textContent = 'not available yet'; }
+    else r.badge.style.display = 'none';
+    if (r.btn) {
+      if (st.downloading) { r.btn.textContent = 'Downloading ' + (st.pct || 0) + '%'; r.btn.disabled = true; }
+      else if (st.installed || st.active) { r.btn.textContent = '✓ Installed'; r.btn.disabled = true; }
+      else { r.btn.textContent = 'Download'; r.btn.disabled = false; }
+    }
+  }
 
   $('autoInject').checked = settings.autoInject !== false;
   $('lockFocus').checked = settings.lockFocus !== false;
@@ -131,8 +173,7 @@ async function init() {
   // Drive a download progress bar from a status string: a "42%" shows a filled
   // bar; a wordy "loading…/extracting…" shows an indeterminate sweep; otherwise
   // it's hidden (off / ready / error — the text row carries those).
-  function setBar(id, state, active) {
-    const pb = $(id);
+  function setBarEl(pb, state, active) {
     if (!pb) return;
     const str = String(state || '');
     const m = str.match(/(\d+)\s*%/);
@@ -146,50 +187,47 @@ async function init() {
       pb.className = 'pbar';
     }
   }
+  function setBar(id, state, active) { setBarEl($(id), state, active); }
   async function refreshStatus() {
     let s;
     try { s = await window.medasr.getStatus(); } catch (e) { return; }
-    // Input model: make the ACTIVE engine obvious.
-    $('stStt').textContent = s.modelReady
-      ? (s.sttActive === s.sttSelected ? `${s.sttActive} — running`
-         : `${s.sttActive} running (you selected ${s.sttSelected}: ${s.sttNote || 'not available'})`)
-      : (s.sttNote || 'not loaded');
-    // STT download button: shown when the selected engine can be downloaded and isn't installed yet.
-    const sttNeedsDl = s.sttInstallable && !s.sttInstalled;
-    $('btnDlStt').style.display = sttNeedsDl || /downloading/i.test(s.sttDl || '') ? 'inline-block' : 'none';
-    // NB: use /downloading/i (not /download/i) so an idle state doesn't get
-    // mistaken for an in-progress download and disable the button.
-    btnState($('btnDlStt'), s.sttInstalled ? 'installed' : (s.sttDl || 'idle'), /downloading/i, /installed/i);
-    if ($('btnDlStt').textContent === 'Download') $('btnDlStt').textContent = 'Set up';
-    setBar('pbStt', s.sttDl, sttNeedsDl || /downloading/i.test(s.sttDl || ''));
+    // STT engine rows
+    for (const it of engines.stt) {
+      setRowState(rowsStt[it.id], {
+        active: s.modelReady && s.sttActive === it.id,
+        installed: !!(s.installed && s.installed[it.id]),
+        downloading: s.dl && s.dl.id === it.id,
+        pct: s.dl && s.dl.pct,
+        notAvailable: !it.implemented && !sttInstallable(it),
+      });
+    }
+    // Cleaning rows (Off has no download/badge except "active")
+    for (const it of engines.cleanup) {
+      if (it.id === 'off') { setRowState(rowsClean[it.id], { active: s.cleanSelected === 'off' && !s.cleanActive }); continue; }
+      setRowState(rowsClean[it.id], {
+        active: s.cleanActive === it.id,
+        installed: !!(s.installed && s.installed[it.id]),
+        downloading: s.dl && s.dl.id === it.id,
+        pct: s.dl && s.dl.pct,
+        loading: s.cleanState === 'loading' && s.cleanSelected === it.id,
+      });
+    }
     if ($('modelsDirNow') && s.modelsDir) $('modelsDirNow').textContent = 'Currently: ' + s.modelsDir;
-    // Cleaning
-    const cleanSel = $('cleanup').value;
-    $('stClean').textContent = cleanSel === 'off' ? 'off' : `${cleanSel} — ${s.cleaning}`;
-    $('btnDlClean').style.display = cleanSel === 'off' ? 'none' : 'inline-block';
-    btnState($('btnDlClean'), s.cleaning, /download|loading/i, /ready|✓/i);
-    setBar('pbClean', s.cleaning, cleanSel !== 'off');
     // Real-time VAD
     const vadOn = $('realtimeMode').checked;
     $('stVad').textContent = vadOn ? s.vad : 'off';
     $('btnDlVad').style.display = vadOn ? 'inline-block' : 'none';
-    btnState($('btnDlVad'), s.vad, /download|loading/i, /ready/i);
+    btnState($('btnDlVad'), s.vad, /downloading|loading/i, /ready/i);
     setBar('pbVad', s.vad, vadOn);
     // Always-on commands (Vosk)
     const cmdOn = $('alwaysOnCommands').checked;
     $('stCmd').textContent = cmdOn ? (s.commands || 'off') : 'off';
     $('btnDlCmd').style.display = cmdOn ? 'inline-block' : 'none';
-    btnState($('btnDlCmd'), s.commands || 'off', /download|loading/i, /ready/i);
+    btnState($('btnDlCmd'), s.commands || 'off', /downloading|loading/i, /ready/i);
     setBar('pbCmd', s.commands || 'off', cmdOn);
   }
-  $('btnDlClean').addEventListener('click', async () => { $('btnDlClean').textContent = 'Starting…'; $('btnDlClean').disabled = true; await window.medasr.setup('cleanup'); });
   $('btnDlVad').addEventListener('click', async () => { $('btnDlVad').textContent = 'Starting…'; $('btnDlVad').disabled = true; await window.medasr.setup('vad'); });
   $('btnDlCmd').addEventListener('click', async () => { $('btnDlCmd').textContent = 'Starting…'; $('btnDlCmd').disabled = true; await window.medasr.setup('commands'); });
-  $('btnDlStt').addEventListener('click', async () => {
-    $('btnDlStt').textContent = 'Starting…'; $('btnDlStt').disabled = true;
-    const r = await window.medasr.setup('stt');
-    if (r && r.ok === false) { $('sttHint').textContent = '⚠ ' + (r.error || 'download failed'); }
-  });
   $('alwaysOnCommands').addEventListener('change', refreshStatus);
   refreshStatus();
   setInterval(refreshStatus, 1200);
@@ -211,11 +249,12 @@ async function init() {
   sync();
 
   $('save').addEventListener('click', async () => {
-    const sel = $('cleanup').value;
+    const sttEngine = (document.querySelector('input[name=sttSel]:checked') || {}).value || settings.sttEngine;
+    const sel = (document.querySelector('input[name=cleanSel]:checked') || {}).value || 'off';
     const enabled = sel !== 'off';
     await window.medasr.setSettings({
-      sttEngine: $('stt').value,
-      cleanupModel: enabled ? sel : (settings.cleanupModel || 'lfm2.5-8b-a1b'),
+      sttEngine,
+      cleanupModel: enabled ? sel : (settings.cleanupModel || 'qwen3-0.6b'),
       cleanupEnabled: enabled,
       autoInject: $('autoInject').checked,
       lockFocus: $('lockFocus').checked,
@@ -236,8 +275,8 @@ async function init() {
       vadMinSpeechMs: Number($('vadMinSpeechMs').value),
     });
     const s = $('saved');
-    s.textContent = enabled ? 'Saved ✓ — downloading/loading the cleaning model…' : 'Saved ✓';
-    s.classList.add('show'); setTimeout(() => s.classList.remove('show'), 3500);
+    s.textContent = 'Saved ✓';
+    s.classList.add('show'); setTimeout(() => s.classList.remove('show'), 3000);
   });
 }
 
