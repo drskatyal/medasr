@@ -18,6 +18,24 @@ const focus = require('./focus');
 let focusLock = false;
 function setFocusLock(b) { focusLock = !!b; }
 
+// Real-time replace strategy: 'span' selects exactly the dictated characters
+// (safe anywhere, but sends N arrow keys = a visible sweep); 'all' uses Ctrl/
+// Cmd+A (one keystroke, instant — but replaces the ENTIRE field, so only for a
+// box that holds just your dictation).
+let replaceMode = 'span';
+function setReplaceMode(m) { replaceMode = m === 'all' ? 'all' : 'span'; }
+
+async function selectAll() {
+  if (process.platform === 'darwin') {
+    await run('osascript', ['-e', 'tell application "System Events" to keystroke "a" using command down']);
+  } else if (process.platform === 'win32') {
+    await run('powershell', ['-NoProfile', '-Command',
+      'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^a")']);
+  } else {
+    await run('xdotool', ['key', '--clearmodifiers', 'ctrl+a']);
+  }
+}
+
 function run(cmd, args) {
   return new Promise((resolve, reject) => {
     execFile(cmd, args, (err) => (err ? reject(err) : resolve()));
@@ -111,19 +129,25 @@ async function replaceText(oldText, newText, graphemeLen) {
   if (!newText || !newText.trim()) {
     return { replaced: false, reason: 'empty correction — kept the original text' };
   }
-  if (n > 3000 || shrinkRatio < 0.4) {
+  if (shrinkRatio < 0.4) {   // cleanup wiped most of the text — possible hallucinated deletion
     clipboard.writeText(newText);
-    return { replaced: false, reason: 'unsafe — corrected text copied to clipboard' };
+    return { replaced: false, reason: 'unsafe shrink — corrected text copied to clipboard' };
+  }
+  // 'span' mode only: a very long selection via key-repeat is slow/lossy.
+  if (replaceMode !== 'all' && n > 3000) {
+    clipboard.writeText(newText);
+    return { replaced: false, reason: 'too long — corrected text copied to clipboard' };
   }
   return serialClip(async () => {
     const prev = clipboard.readText();
     clipboard.writeText(newText);
     await sleep(60);
     try {
-      // Restore the locked target FIRST, so the backward selection happens in the
-      // report field — not in whatever else grabbed focus during cleanup.
+      // Restore the locked target FIRST, so the selection happens in the report
+      // field — not in whatever else grabbed focus during cleanup.
       if (focusLock) { await focus.restoreTarget(); await sleep(60); }
-      await selectLeft(n);        // awaited -> selection is complete before we paste
+      if (replaceMode === 'all') await selectAll();   // one keystroke, no sweep (whole field)
+      else await selectLeft(n);                       // exactly the dictated span (sends N keys)
       await sleep(120);
       await paste();              // paste() re-asserts focus, then pastes
       await sleep(180);
@@ -136,4 +160,4 @@ async function replaceText(oldText, newText, graphemeLen) {
   });
 }
 
-module.exports = { injectText, replaceText, setFocusLock };
+module.exports = { injectText, replaceText, setFocusLock, setReplaceMode };

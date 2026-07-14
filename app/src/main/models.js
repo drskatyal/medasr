@@ -69,6 +69,7 @@ const DEFAULTS = {
   vadSilenceMs: 700,           // pause length (ms) that finalizes an utterance
   vadMinSpeechMs: 250,         // ignore speech blips shorter than this
   realtimeReplace: true,       // clean once at end and replace typed text (else clipboard-only)
+  replaceWholeField: false,    // replace via Ctrl+A (instant, no sweep) — only if the field holds just your dictation
 };
 
 function loadSettings() {

@@ -239,6 +239,7 @@ async function init() {
   // real-time / VAD controls
   $('realtimeMode').checked = !!settings.realtimeMode;
   $('realtimeReplace').checked = settings.realtimeReplace !== false;
+  $('replaceWholeField').checked = !!settings.replaceWholeField;
   $('vadSilenceMs').value = settings.vadSilenceMs ?? 700;
   $('vadProbThreshold').value = settings.vadProbThreshold ?? 0.5;
   $('vadMinSpeechMs').value = settings.vadMinSpeechMs ?? 250;
@@ -275,6 +276,7 @@ async function init() {
       modelsDirOverride: $('modelsDir').value.trim(),
       realtimeMode: $('realtimeMode').checked,
       realtimeReplace: $('realtimeReplace').checked,
+      replaceWholeField: $('replaceWholeField').checked,
       vadSilenceMs: Number($('vadSilenceMs').value),
       vadProbThreshold: Number($('vadProbThreshold').value),
       vadMinSpeechMs: Number($('vadMinSpeechMs').value),

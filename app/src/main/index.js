@@ -13,7 +13,7 @@ function log(...a) { console.log('[medasr]', ...a); }
 
 const { Asr } = require('./asr');
 const { ParakeetAsr } = require('./asr_parakeet');
-const { injectText, replaceText, setFocusLock } = require('./inject');
+const { injectText, replaceText, setFocusLock, setReplaceMode } = require('./inject');
 const focus = require('./focus');
 const { LlmEngine } = require('./llm');
 const { cleanupTranscript } = require('./cleanup');
@@ -455,6 +455,7 @@ ipcMain.handle('set-settings', (_e, s) => {
   if (settings.modelsDirOverride !== prevDir) provision.setModelsDir(settings.modelsDirOverride);
   registerHotkey();
   setFocusLock(settings.lockFocus);
+  setReplaceMode(settings.replaceWholeField ? 'all' : 'span');
   refreshTrayMenu();
   // Reload the STT engine if the user switched it (only loads if its files are
   // already present; loadAsr falls back to MedASR otherwise — no auto-download).
@@ -554,6 +555,7 @@ async function boot() {
   buildTray();
   registerHotkey();
   setFocusLock(settings.lockFocus);
+  setReplaceMode(settings.replaceWholeField ? 'all' : 'span');
   provision.setModelsDir(settings.modelsDirOverride);   // honor a custom models location
 
   await loadAsr();
