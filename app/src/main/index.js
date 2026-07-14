@@ -350,6 +350,11 @@ async function loadAsr() {
       log(`'${engId}' model files not found in ${dir} -> MedASR`);
       notify('Using MedASR', `“${eng.label}” needs its model files (see docs/PARAKEET.md). Falling back to MedASR.`);
     }
+  } else if (eng && eng.runtime === 'llama-audio') {
+    // Single-call audio LLMs (Gemma 4 audio / LFM2.5-Audio) need llama.cpp
+    // audio-input support, which is still maturing — not runtime-wired yet.
+    log(`'${engId}' (single-call audio LLM) not runtime-wired yet -> MedASR`);
+    notify('Using MedASR', `“${eng.label}” isn’t runnable yet (llama.cpp audio input). Falling back to MedASR.`);
   }
 
   // Default: MedASR (onnxruntime-node + CTC).

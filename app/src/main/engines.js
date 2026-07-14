@@ -19,6 +19,8 @@ const STT_ENGINES = [
     note: 'Download GGUF + audio mmproj; runs in the llama.cpp sidecar.' },
   { id: 'gemma4-audio', label: 'Gemma 4 E4B — audio (single-call)', runtime: 'llama-audio', implemented: false,
     note: 'Transcribes + formats in one call. GGUF + BF16 mmproj.' },
+  { id: 'lfm-audio', label: 'LFM2.5-Audio 1.5B — audio (single-call, punctuated)', runtime: 'llama-audio', implemented: false,
+    note: 'One model: audio → punctuated text, ~Whisper-v3 WER, <100ms. GGUF via llama.cpp; audio-input support in llama.cpp/node-llama-cpp still maturing.' },
 ];
 
 const CLEANUP_MODELS = [
