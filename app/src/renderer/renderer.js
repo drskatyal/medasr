@@ -70,7 +70,7 @@ async function ensureWarm() {
     let total = preRoll.reduce((n, c) => n + c.length, 0);
     while (preRoll.length > 1 && total - preRoll[0].length >= maxPre) total -= preRoll.shift().length;
     if (recording) collected.push(data);
-    if (streaming) { try { window.medasr.sendFrame(resampleTo16k(data, nativeSR)); } catch (err) {} }
+    if (streaming) { try { window.medasr.sendFrame(streamResample16k(data, nativeSR)); } catch (err) {} }
   };
   source.connect(processor);
   processor.connect(audioCtx.destination);
@@ -92,6 +92,30 @@ function stopCapture() {
   const merged = mergeFloat32(collected);
   collected = [];
   return resampleTo16k(merged, nativeSR);
+}
+
+// Stateful linear resampler for the real-time stream: carries the phase and the
+// last sample across chunks so there's no discontinuity at chunk boundaries
+// (per-chunk stateless resampling aliases glitches into the speech band).
+let rsPos = 0;
+let rsPrev = 0;
+function streamResample16k(input, srcSR) {
+  if (srcSR === TARGET_SR) return input;
+  const ratio = srcSR / TARGET_SR;
+  const ext = new Float32Array(input.length + 1);
+  ext[0] = rsPrev; ext.set(input, 1);
+  const out = [];
+  let pos = rsPos;
+  const last = ext.length - 1;
+  while (pos < last) {
+    const i0 = Math.floor(pos);
+    const frac = pos - i0;
+    out.push(ext[i0] + (ext[i0 + 1] - ext[i0]) * frac);
+    pos += ratio;
+  }
+  rsPos = pos - last;                 // carry fractional phase into next chunk
+  rsPrev = input[input.length - 1];   // next chunk's ext[0]
+  return Float32Array.from(out);
 }
 
 function computeRms(frame) {
@@ -131,6 +155,7 @@ window.medasr.onRecord(async (msg) => {
   if (msg.action === 'start') {
     if (msg.mode === 'realtime') {
       const ok = await ensureWarm();
+      rsPos = 0; rsPrev = 0;   // reset resampler phase for a fresh session
       if (ok) { streaming = true; rlog('realtime streaming on'); } else { streaming = false; setState('idle'); }
     } else {
       try { await startCapture(); } catch (e) { setState('idle'); }

@@ -20,6 +20,18 @@ function run(cmd, args) {
   });
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Single clipboard mutex: every write/paste/restore runs to completion before
+// the next begins, so overlapping utterances (real-time mode) can't clobber the
+// clipboard mid-paste or restore the wrong value into an EHR field.
+let clipChain = Promise.resolve();
+function serialClip(fn) {
+  const run = clipChain.then(fn, fn);
+  clipChain = run.then(() => {}, () => {});
+  return run;
+}
+
 async function pasteMac() {
   await run('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down']);
 }
@@ -38,22 +50,23 @@ async function pasteLinux() {
   }
 }
 
-// Inject text at the current cursor position of the focused app.
-// Preserves the user's prior clipboard contents.
+async function paste() {
+  if (process.platform === 'darwin') await pasteMac();
+  else if (process.platform === 'win32') await pasteWin();
+  else await pasteLinux();
+}
+
+// Inject text at the current cursor position of the focused app. Serialized on
+// the clipboard mutex; does not resolve until the prior clipboard is restored.
 async function injectText(text) {
   if (!text) return;
-  const prev = clipboard.readText();
-  clipboard.writeText(text);
-  // Small delay so the target app registers the new clipboard before paste.
-  await new Promise((r) => setTimeout(r, 60));
-  try {
-    if (process.platform === 'darwin') await pasteMac();
-    else if (process.platform === 'win32') await pasteWin();
-    else await pasteLinux();
-  } finally {
-    // Restore previous clipboard shortly after paste completes.
-    setTimeout(() => clipboard.writeText(prev), 250);
-  }
+  return serialClip(async () => {
+    const prev = clipboard.readText();
+    clipboard.writeText(text);
+    await sleep(60);              // let the target register the new clipboard
+    try { await paste(); }
+    finally { await sleep(180); clipboard.writeText(prev); }  // restore inside the lock
+  });
 }
 
 // Replace previously-typed text with corrected text. Selects `graphemeLen`
@@ -78,28 +91,29 @@ async function selectLeft(n) {
 async function replaceText(oldText, newText, graphemeLen) {
   const n = graphemeLen || oldText.length;
   const shrinkRatio = newText.length / Math.max(1, oldText.length);
-  // Guardrails: don't attempt a giant selection, and don't accept a cleanup
-  // that wiped most of the text (possible hallucinated deletion).
-  const unsafe = n > 4000 || shrinkRatio < 0.4;
-  if (unsafe) {
+  // Guardrails: don't attempt a huge selection, and don't accept a cleanup that
+  // wiped most of the text (possible hallucinated deletion). Fail open: put the
+  // corrected text on the clipboard so the user can paste it, never delete.
+  if (n > 3000 || shrinkRatio < 0.4) {
     clipboard.writeText(newText);
     return { replaced: false, reason: 'unsafe — corrected text copied to clipboard' };
   }
-  const prev = clipboard.readText();
-  clipboard.writeText(newText);
-  await new Promise((r) => setTimeout(r, 60));
-  try {
-    await selectLeft(n);                 // select what we typed
-    await new Promise((r) => setTimeout(r, 40));
-    if (process.platform === 'darwin') await pasteMac();
-    else if (process.platform === 'win32') await pasteWin();
-    else await pasteLinux();
-    return { replaced: true };
-  } catch (e) {
-    return { replaced: false, reason: String(e) };
-  } finally {
-    setTimeout(() => clipboard.writeText(prev), 300);
-  }
+  return serialClip(async () => {
+    const prev = clipboard.readText();
+    clipboard.writeText(newText);
+    await sleep(60);
+    try {
+      await selectLeft(n);        // awaited -> selection is complete before we paste
+      await sleep(120);
+      await paste();
+      await sleep(180);
+      return { replaced: true };
+    } catch (e) {
+      return { replaced: false, reason: String(e) };
+    } finally {
+      clipboard.writeText(prev);
+    }
+  });
 }
 
 module.exports = { injectText, replaceText };

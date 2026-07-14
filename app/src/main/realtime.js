@@ -76,7 +76,7 @@ class RealtimeSession {
     this._inbox.push(pcm);
     if (this._draining) return;
     this._draining = true;
-    (async () => {
+    this._drainPromise = (async () => {
       while (this._inbox.length && this.active) {
         await this._process(this._inbox.shift());
       }
@@ -100,9 +100,10 @@ class RealtimeSession {
       this.pending = pcm;
     }
 
-    while (this.pending.length >= WINDOW) {
-      if (ep !== this.epoch) return;
-      const frame = this.pending.subarray(0, WINDOW);
+    // Gate on `active` too: once finish() flips it, this loop stops immediately
+    // and cannot enqueue a late utterance after cleanup (the confirmed race).
+    while (this.active && ep === this.epoch && this.pending.length >= WINDOW) {
+      const frame = this.pending.slice(0, WINDOW);   // copy (not a view) before await
       this.pending = this.pending.slice(WINDOW);
       let prob = 0;
       try { prob = await this.d.vad.process(frame); } catch (e) { this.d.hooks.log('vad err: ' + (e && e.message)); }
@@ -144,19 +145,28 @@ class RealtimeSession {
     }).catch((e) => this.d.hooks.log('utterance err: ' + (e && e.message)));
   }
 
+  // Await the queue until it's stable (a late .then may extend it once).
+  async _drainQueue() {
+    let q;
+    do { q = this.queue; try { await q; } catch (e) {} } while (q !== this.queue);
+  }
+
   // Hotkey pressed again -> end session: flush, clean once, replace.
   async finish() {
     if (!this.active) return;
-    this.active = false;
+    this.active = false;                     // stops the drain loop + _process window loop
     const ep = this.epoch;
+
+    // Wait for any in-flight _process to unwind BEFORE reading `utter`, so there
+    // is no concurrent access / late enqueue racing this flush.
+    if (this._drainPromise) { try { await this._drainPromise; } catch (e) {} }
 
     // flush a still-open utterance
     if (this.speaking && this.utter && this.speechMs >= this.cfg().minSpeechMs) {
-      const samples = mergeF32(this.utter);
-      this._enqueueUtterance(samples, ep);
+      this._enqueueUtterance(mergeF32(this.utter), ep);
     }
     this.speaking = false; this.utter = null;
-    await this.queue;                       // wait for all utterances to type
+    await this._drainQueue();                // wait for all utterances to type (stable)
     if (ep !== this.epoch) return;
 
     // one cleanup pass over the whole session, then safe replace
