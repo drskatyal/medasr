@@ -117,11 +117,26 @@
     dictation is off. It never transcribes your report — only listens for the fixed command list.</div>
 
   <div class="row">
-    <label for="macros">Macros — one per line as <code>trigger = expansion</code></label>
-    <textarea id="macros" rows="5" spellcheck="false"
-      style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(128,128,128,.4); background:transparent; color:inherit; font:13px ui-monospace, Menlo, Consolas, monospace; resize:vertical"></textarea>
-    <div class="hint">Say the trigger alone (e.g. “normal chest”) to type its expansion. Use <code>\n</code> for line breaks.</div>
+    <label>Macros — say the trigger to type the text</label>
+    <table id="macroTable">
+      <thead><tr><th style="width:34%">Trigger phrase</th><th>Types this…</th><th style="width:28px"></th></tr></thead>
+      <tbody id="macroBody"></tbody>
+    </table>
+    <button id="macroAdd" type="button" class="secondary">+ Add macro</button>
+    <div class="hint">Say the trigger alone (e.g. “normal chest”) to type its text. Shift+Enter for a line break in the text.</div>
   </div>
+  <style>
+    #macroTable{width:100%;border-collapse:collapse;margin-bottom:8px}
+    #macroTable th{text-align:left;font-size:11px;opacity:.6;font-weight:600;padding:2px 6px 4px 0}
+    #macroTable td{padding:3px 6px 3px 0;vertical-align:top}
+    #macroTable input,#macroTable textarea{width:100%;padding:6px 8px;border-radius:6px;
+      border:1px solid rgba(128,128,128,.4);background:transparent;color:inherit;font-size:13px;box-sizing:border-box}
+    #macroTable textarea{resize:vertical;min-height:32px;font-family:inherit}
+    .mdel{background:transparent!important;color:#ef4444!important;font-size:18px!important;
+      padding:2px 6px!important;line-height:1;border:0;cursor:pointer}
+    button.secondary{background:transparent;color:#2563eb;border:1px solid rgba(37,99,235,.5);
+      padding:6px 12px;font-size:13px}
+  </style>
 
   <div class="row">
     <label for="pacsCommand">“Open PACS” target (optional)</label>

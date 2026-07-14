@@ -37,8 +37,42 @@ async function init() {
   $('voiceNav').checked = settings.voiceNav !== false;
   $('voiceActions').checked = settings.voiceActions !== false;
   $('alwaysOnCommands').checked = settings.alwaysOnCommands !== false;
-  $('macros').value = settings.macros || '';
   $('pacsCommand').value = settings.pacsCommand || '';
+
+  // --- macro table (stored as "trigger = text" lines; \n for line breaks) ---
+  function addMacroRow(trigger = '', text = '') {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td><input class="mtrig" type="text" spellcheck="false" placeholder="normal chest"></td>'
+      + '<td><textarea class="mtext" rows="1" spellcheck="false" placeholder="No acute…"></textarea></td>'
+      + '<td><button type="button" class="mdel" title="Remove">×</button></td>';
+    tr.querySelector('.mtrig').value = trigger;
+    tr.querySelector('.mtext').value = text;
+    tr.querySelector('.mdel').addEventListener('click', () => tr.remove());
+    $('macroBody').appendChild(tr);
+  }
+  function loadMacros(str) {
+    $('macroBody').innerHTML = '';
+    for (const line of (str || '').split('\n')) {
+      const i = line.indexOf('=');
+      if (i <= 0) continue;
+      const trig = line.slice(0, i).trim();
+      const text = line.slice(i + 1).trim().replace(/\\n/g, '\n');   // show real line breaks
+      if (trig) addMacroRow(trig, text);
+    }
+    if (!$('macroBody').children.length) addMacroRow();   // start with one empty row
+  }
+  function serializeMacros() {
+    const out = [];
+    for (const tr of $('macroBody').children) {
+      const trig = tr.querySelector('.mtrig').value.trim();
+      const text = tr.querySelector('.mtext').value.trim().replace(/\r?\n/g, '\\n');  // store \n
+      if (trig && text) out.push(trig + ' = ' + text);
+    }
+    return out.join('\n');
+  }
+  $('macroAdd').addEventListener('click', () => addMacroRow());
+  loadMacros(settings.macros);
+  window.__serializeMacros = serializeMacros;
   $('hotkey').value = settings.hotkey || 'Alt+Q';
   $('modelPath').value = settings.llmModelPath || '';
   $('modelsDir').value = settings.modelsDirOverride || '';
@@ -78,7 +112,10 @@ async function init() {
     // STT download button: shown when the selected engine can be downloaded and isn't installed yet.
     const sttNeedsDl = s.sttInstallable && !s.sttInstalled;
     $('btnDlStt').style.display = sttNeedsDl || /downloading/i.test(s.sttDl || '') ? 'inline-block' : 'none';
-    btnState($('btnDlStt'), s.sttInstalled ? 'installed' : (s.sttDl || 'download'), /download/i, /installed/i);
+    // NB: use /downloading/i (not /download/i) so an idle state doesn't get
+    // mistaken for an in-progress download and disable the button.
+    btnState($('btnDlStt'), s.sttInstalled ? 'installed' : (s.sttDl || 'idle'), /downloading/i, /installed/i);
+    if ($('btnDlStt').textContent === 'Download') $('btnDlStt').textContent = 'Set up';
     setBar('pbStt', s.sttDl, sttNeedsDl || /downloading/i.test(s.sttDl || ''));
     if ($('modelsDirNow') && s.modelsDir) $('modelsDirNow').textContent = 'Currently: ' + s.modelsDir;
     // Cleaning
@@ -141,7 +178,7 @@ async function init() {
       voiceNav: $('voiceNav').checked,
       voiceActions: $('voiceActions').checked,
       alwaysOnCommands: $('alwaysOnCommands').checked,
-      macros: $('macros').value,
+      macros: window.__serializeMacros ? window.__serializeMacros() : (settings.macros || ''),
       pacsCommand: $('pacsCommand').value.trim(),
       hotkey: $('hotkey').value.trim() || 'Alt+Q',
       llmModelPath: $('modelPath').value.trim(),
