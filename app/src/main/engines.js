@@ -13,14 +13,14 @@ const STT_ENGINES = [
     note: 'NVIDIA Parakeet-TDT via sherpa-onnx. One-click download (~650 MB). High accuracy, low latency.' },
   { id: 'omi-med-stt', label: 'Omi Med STT — (uses Parakeet-TDT base)', runtime: 'parakeet-tdt', implemented: true,
     note: 'Downloads the fast Parakeet-TDT base (~650 MB). One-click.' },
-  { id: 'whisper-medical', label: 'Whisper small — Medical', runtime: 'whisper', implemented: false,
-    note: 'Runs via faster-whisper / whisper.cpp (int8).' },
-  { id: 'voxtral-mini-3b', label: 'Voxtral Mini 3B — multilingual', runtime: 'llama-audio', implemented: false,
-    note: 'Download GGUF + audio mmproj; runs in the llama.cpp sidecar.' },
-  { id: 'gemma4-audio', label: 'Gemma 4 E4B — audio (single-call)', runtime: 'llama-audio', implemented: false,
-    note: 'Transcribes + formats in one call. GGUF + BF16 mmproj.' },
-  { id: 'lfm-audio', label: 'LFM2.5-Audio 1.5B — audio (single-call, punctuated)', runtime: 'llama-audio', implemented: false,
-    note: 'One model: audio → punctuated text, ~Whisper-v3 WER, <100ms. GGUF via llama.cpp; audio-input support in llama.cpp/node-llama-cpp still maturing.' },
+  // Single-call audio-LLMs via a llama-server sidecar (transcribe + format in one
+  // model). EXPERIMENTAL: needs a llama-server binary set in Settings → Advanced.
+  { id: 'gemma4-e4b-audio', label: 'Gemma 4 E4B — audio, single-call (experimental)', runtime: 'llama-server-audio', implemented: true,
+    audio: true, hf: 'ggml-org/gemma-4-E4B-it-GGUF',
+    note: 'Transcribes + formats in one call. ~4B — the audio-LLM that fits a laptop iGPU. Slower than MedASR, not streaming. Needs a llama-server binary.' },
+  { id: 'gemma4-12b-audio', label: 'Gemma 4 12B — audio, single-call (heavy)', runtime: 'llama-server-audio', implemented: true,
+    audio: true, hf: 'ggml-org/gemma-4-12B-it-GGUF',
+    note: 'Higher quality but much slower on an integrated GPU. Audio-capable. Needs the llama-server binary. (26B/31B have NO audio.)' },
 ];
 
 const CLEANUP_MODELS = [

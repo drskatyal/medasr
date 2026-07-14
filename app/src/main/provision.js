@@ -32,7 +32,7 @@ async function resolveGgufFile(repo, preferred, hfToken) {
     let ggufs = (info.siblings || []).map((s) => s.rfilename).filter((f) => /\.gguf$/i.test(f));
     if (!ggufs.length) return preferred;
     // Exclude giant full-precision / multi-part files (F16/BF16/F32, "-of-").
-    const small = ggufs.filter((f) => !/(f16|bf16|f32|fp16)/i.test(f) && !/-\d{5}-of-\d{5}/i.test(f));
+    const small = ggufs.filter((f) => !/(f16|bf16|f32|fp16|mmproj)/i.test(f) && !/-\d{5}-of-\d{5}/i.test(f));
     if (small.length) ggufs = small;
     return ggufs.find((f) => f === preferred)
       || ggufs.find((f) => /q4_k_m/i.test(f))
@@ -245,6 +245,38 @@ async function _doEnsureSttModel(engineId, { onProgress } = {}) {
   return dir;
 }
 
+// ---- audio-LLM STT (Gemma 4 E4B/12B): model GGUF + audio mmproj ----
+async function resolveMmproj(repo, hfToken) {
+  const headers = hfToken ? { Authorization: `Bearer ${hfToken}` } : {};
+  const info = await httpsGetJson(`https://huggingface.co/api/models/${repo}`, headers);
+  const files = (info.siblings || []).map((s) => s.rfilename).filter((f) => /\.gguf$/i.test(f) && /mmproj/i.test(f));
+  if (!files.length) return null;
+  return files.find((f) => /audio/i.test(f)) || files.find((f) => /f16/i.test(f)) || files[0];
+}
+function audioPaths(id) {
+  const d = sttModelDir(id);
+  return { model: path.join(d, 'model.gguf'), mmproj: path.join(d, 'mmproj.gguf') };
+}
+function isAudioInstalled(id) {
+  const p = audioPaths(id);
+  try { return fs.statSync(p.model).size > 1e6 && fs.statSync(p.mmproj).size > 1e5; } catch (e) { return false; }
+}
+// Download the model GGUF + audio projector into the per-engine dir.
+async function ensureAudioModel(id, repo, { onProgress, hfToken } = {}) {
+  const p = audioPaths(id);
+  if (isAudioInstalled(id)) return p;
+  const modelFile = await resolveGgufFile(repo, null, hfToken);   // excludes mmproj
+  if (!modelFile) throw new Error(`no model GGUF found in ${repo}`);
+  console.log(`[provision] audio ${id}: model ${repo}/${modelFile}`);
+  await downloadFile(`https://huggingface.co/${repo}/resolve/main/${encodeURIComponent(modelFile)}`, p.model, { onProgress });
+  const mm = await resolveMmproj(repo, hfToken);
+  if (!mm) throw new Error(`no audio mmproj in ${repo} — this repo may not include the audio projector`);
+  console.log(`[provision] audio ${id}: mmproj ${repo}/${mm}`);
+  await downloadFile(`https://huggingface.co/${repo}/resolve/main/${encodeURIComponent(mm)}`, p.mmproj, {});
+  if (!isAudioInstalled(id)) throw new Error('audio model files missing after download');
+  return p;
+}
+
 function localPathFor(id) {
   const entry = CATALOG[id];
   if (!entry) return null;
@@ -278,4 +310,5 @@ module.exports = {
   CATALOG, modelsDir, sttModelDir, ensureVadModel, localPathFor, isInstalled, ensureModel,
   ensureVoskModel, voskModelDir, isVoskInstalled,
   setModelsDir, defaultModelsDir, STT_CATALOG, ensureSttModel, isSttInstalled,
+  ensureAudioModel, isAudioInstalled, audioPaths,
 };

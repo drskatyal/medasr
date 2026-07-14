@@ -278,6 +278,13 @@
           <span id="modelsDirNow"></span></div>
       </div>
       <div class="field">
+        <label for="llamaServerPath">llama-server binary (for single-call audio STT)</label>
+        <input type="text" id="llamaServerPath" placeholder="e.g. C:\llama\llama-server.exe">
+        <div class="hint">Experimental. Gemma-4 audio engines run through a <code>llama-server</code> sidecar. Download a
+          recent <b>audio-capable</b> build from the llama.cpp releases, then point this at the <code>llama-server</code>
+          executable. Leave blank if you don't use the audio engines.</div>
+      </div>
+      <div class="field">
         <label for="modelPath">Cleaning model file (optional override)</label>
         <input type="text" id="modelPath" placeholder="Leave blank — auto-downloaded on first use">
         <div class="hint">The cleaning model downloads automatically the first time it's enabled and is cached.

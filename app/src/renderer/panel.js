@@ -65,7 +65,7 @@ async function init() {
   // ---- inline model lists: each model is a selectable row with its note, a
   // Download button, and its own progress. NOTHING here downloads on its own. ----
   const rowsStt = {}, rowsClean = {};
-  const sttInstallable = (it) => it.runtime === 'parakeet-tdt';
+  const sttInstallable = (it) => it.runtime === 'parakeet-tdt' || it.runtime === 'llama-server-audio';
   function buildRow(container, it, group, { installable, isOff }) {
     const row = document.createElement('div'); row.className = 'mrow2';
     const radio = document.createElement('input'); radio.type = 'radio'; radio.name = group; radio.value = it.id;
@@ -164,6 +164,7 @@ async function init() {
   $('hotkey').value = settings.hotkey || 'Alt+Q';
   $('modelPath').value = settings.llmModelPath || '';
   $('modelsDir').value = settings.modelsDirOverride || '';
+  $('llamaServerPath').value = settings.llamaServerPath || '';
 
   // Live status panel + setup buttons (so setup/errors are visible, no pop-ups).
   function btnState(btn, state, downloadingRe, readyRe) {
@@ -274,6 +275,7 @@ async function init() {
       hotkey: $('hotkey').value.trim() || 'Alt+Q',
       llmModelPath: $('modelPath').value.trim(),
       modelsDirOverride: $('modelsDir').value.trim(),
+      llamaServerPath: $('llamaServerPath').value.trim(),
       realtimeMode: $('realtimeMode').checked,
       realtimeReplace: $('realtimeReplace').checked,
       replaceWholeField: $('replaceWholeField').checked,

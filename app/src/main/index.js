@@ -13,6 +13,7 @@ function log(...a) { console.log('[medasr]', ...a); }
 
 const { Asr } = require('./asr');
 const { ParakeetAsr } = require('./asr_parakeet');
+const { LlamaAudioAsr } = require('./asr_llama_audio');
 const { injectText, replaceText, setFocusLock, setReplaceMode } = require('./inject');
 const focus = require('./focus');
 const { LlmEngine } = require('./llm');
@@ -402,7 +403,7 @@ ipcMain.handle('get-status', () => {
   // its own size, status, and Download button) instead of a shared bar.
   const installed = {};
   try { for (const m of engines.CLEANUP_MODELS) if (m.id !== 'off') installed[m.id] = provision.isInstalled(m.id); } catch (e) {}
-  try { for (const en of engines.STT_ENGINES) installed[en.id] = provision.isSttInstalled(en.id); } catch (e) {}
+  try { for (const en of engines.STT_ENGINES) installed[en.id] = en.runtime === 'llama-server-audio' ? provision.isAudioInstalled(en.id) : provision.isSttInstalled(en.id); } catch (e) {}
   return {
     sttSelected: settings.sttEngine, sttActive, sttNote, modelReady,
     cleaning,
@@ -430,10 +431,14 @@ ipcMain.handle('setup', async (_e, what, id) => {
     else if (what === 'commands') { settings.alwaysOnCommands = true; models.saveSettings(settings); await ensureCommandListener(); }
     else if (what === 'stt') {
       const eid = id || settings.sttEngine;
-      if (!provision.STT_CATALOG[eid]) return { ok: false, error: 'no download for this engine' };
+      const engDef = engines.sttEngine(eid);
+      const isAudio = engDef && engDef.runtime === 'llama-server-audio';
+      if (!isAudio && !provision.STT_CATALOG[eid]) return { ok: false, error: 'no download for this engine' };
       settings.sttEngine = eid; models.saveSettings(settings);
       dl = { id: eid, pct: 0 }; sttDlStatus = 'downloading 0%';
-      await provision.ensureSttModel(eid, { onProgress: ({ pct }) => { dl = { id: eid, pct }; sttDlStatus = `downloading ${pct}%`; } });
+      const onProgress = ({ pct }) => { dl = { id: eid, pct }; sttDlStatus = `downloading ${pct}%`; };
+      if (isAudio) await provision.ensureAudioModel(eid, engDef.hf, { hfToken: process.env.HF_TOKEN, onProgress });
+      else await provision.ensureSttModel(eid, { onProgress });
       dl = { id: null, pct: 0 };
       await loadAsr();               // switch to the freshly-downloaded engine
       sttDlStatus = 'installed';     // only after both extract AND load succeed
@@ -571,8 +576,16 @@ async function boot() {
 // Load the selected STT engine. Parakeet-TDT engines (Omi Med STT / Parakeet
 // medical) run via sherpa-onnx if their model files are present; otherwise we
 // fall back to MedASR so the app always works.
+// The llama-server binary (for single-call audio engines). User-provided path
+// for now (download one from a llama.cpp release with mtmd/audio support).
+function resolveLlamaServer() {
+  const p = settings.llamaServerPath;
+  return (p && require('fs').existsSync(p)) ? p : null;
+}
+
 async function loadAsr() {
   modelReady = false;
+  if (asr && typeof asr.stop === 'function') { try { asr.stop(); } catch (e) {} }  // stop a running audio sidecar
   asr = null;
   sttActive = 'none'; sttNote = '';
   const engId = settings.sttEngine || 'medasr';
@@ -595,9 +608,26 @@ async function loadAsr() {
       sttNote = 'needs model files — click “Set up” (see docs/PARAKEET.md). Using MedASR.';
       log(`'${engId}' model files not found in ${dir} -> MedASR`);
     }
-  } else if (eng && eng.runtime === 'llama-audio') {
-    sttNote = 'not runnable yet (llama.cpp audio input still maturing). Using MedASR.';
-    log(`'${engId}' (single-call audio LLM) not runtime-wired yet -> MedASR`);
+  } else if (eng && eng.runtime === 'llama-server-audio') {
+    const serverBin = resolveLlamaServer();
+    if (!provision.isAudioInstalled(engId)) {
+      sttNote = 'needs model files — click “Set up”. Using MedASR.';
+      log(`'${engId}' audio model not downloaded -> MedASR`);
+    } else if (!serverBin) {
+      sttNote = 'set the llama-server binary path in Settings → Advanced. Using MedASR.';
+      log(`'${engId}': no llama-server binary configured -> MedASR`);
+    } else {
+      try {
+        const p = provision.audioPaths(engId);
+        asr = await new LlamaAudioAsr({ serverBin, modelPath: p.model, mmprojPath: p.mmproj, gpu: settings.gpuAccel }).init();
+        modelReady = true; sttActive = engId; sttNote = 'running (single-call audio LLM)';
+        log(`STT engine '${engId}' (llama-server audio) loaded`);
+        return;
+      } catch (e) {
+        sttNote = `failed to start (${e && e.message || e}) — using MedASR`;
+        log(`audio engine '${engId}' failed, falling back to MedASR:`, e && e.message || e);
+      }
+    }
   }
 
   // Default: MedASR (onnxruntime-node + CTC).
@@ -654,7 +684,7 @@ async function ensureCleanupLlm() {
   }
 }
 
-app.on('will-quit', () => { if (llm) llm.stop(); if (voskCmd) { try { voskCmd.free(); } catch (e) {} } });
+app.on('will-quit', () => { if (llm) llm.stop(); if (voskCmd) { try { voskCmd.free(); } catch (e) {} } if (asr && asr.stop) { try { asr.stop(); } catch (e) {} } });
 
 if (process.platform === 'darwin' && app.dock) app.dock.hide(); // menubar app
 if (!app.requestSingleInstanceLock()) app.quit();
