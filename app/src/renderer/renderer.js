@@ -54,9 +54,15 @@ async function startCapture() {
     rlog('getUserMedia FAILED: ' + (e && e.message || e));
     throw e;
   }
-  audioCtx = new AudioContext();
+  audioCtx = new AudioContext({ sampleRate: 48000 });
+  // A global hotkey isn't a DOM user-gesture, so the context can start
+  // suspended -> no samples flow. Force it to run.
+  if (audioCtx.state === 'suspended') {
+    try { await audioCtx.resume(); rlog('audioCtx resumed'); }
+    catch (e) { rlog('audioCtx resume failed: ' + (e && e.message || e)); }
+  }
   nativeSR = audioCtx.sampleRate;
-  rlog('mic capture started @ ' + nativeSR + ' Hz');
+  rlog('mic capture started @ ' + nativeSR + ' Hz, state=' + audioCtx.state);
   source = audioCtx.createMediaStreamSource(stream);
   // ScriptProcessor is deprecated but works everywhere without shipping a worklet file.
   processor = audioCtx.createScriptProcessor(4096, 1, 1);
