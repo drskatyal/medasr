@@ -98,9 +98,15 @@ async function selectLeft(n) {
 async function replaceText(oldText, newText, graphemeLen) {
   const n = graphemeLen || oldText.length;
   const shrinkRatio = newText.length / Math.max(1, oldText.length);
-  // Guardrails: don't attempt a huge selection, and don't accept a cleanup that
-  // wiped most of the text (possible hallucinated deletion). Fail open: put the
-  // corrected text on the clipboard so the user can paste it, never delete.
+  // MEDICAL SAFETY guardrails — refuse the auto-replace (never risk eating chart
+  // text) and fall back to the clipboard, if:
+  //  - the correction is empty/whitespace (a paste of "" over a selection would
+  //    DELETE the note),
+  //  - the selection would be huge (key-repeat select is slow + lossy), or
+  //  - the cleanup wiped most of the text (possible hallucinated deletion).
+  if (!newText || !newText.trim()) {
+    return { replaced: false, reason: 'empty correction — kept the original text' };
+  }
   if (n > 3000 || shrinkRatio < 0.4) {
     clipboard.writeText(newText);
     return { replaced: false, reason: 'unsafe — corrected text copied to clipboard' };
@@ -110,9 +116,12 @@ async function replaceText(oldText, newText, graphemeLen) {
     clipboard.writeText(newText);
     await sleep(60);
     try {
+      // Restore the locked target FIRST, so the backward selection happens in the
+      // report field — not in whatever else grabbed focus during cleanup.
+      if (focusLock) { await focus.restoreTarget(); await sleep(60); }
       await selectLeft(n);        // awaited -> selection is complete before we paste
       await sleep(120);
-      await paste();
+      await paste();              // paste() re-asserts focus, then pastes
       await sleep(180);
       return { replaced: true };
     } catch (e) {
