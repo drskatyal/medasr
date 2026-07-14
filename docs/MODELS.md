@@ -13,7 +13,8 @@ on-device feasibility (as of mid-2026), licenses, and how to choose.
 | Model | Params | Medical? | Streaming | On-device runtime | License | Status here |
 |-------|--------|----------|-----------|-------------------|---------|-------------|
 | **MedASR** (`google/medasr`) | ~120M CTC | ✅ tuned | ❌ (bidirectional) | onnxruntime-node ✅ | HAI-DEF (gated) | **Shipping** |
-| **Parakeet-TDT-0.6B-EN-Medical** (`yuriyvnv/…`) | 0.6B | ✅ tuned | ✅ fast | NeMo / ONNX | Apache-lineage | **Top eval candidate** — fast + medical + open |
+| **Omi Med STT v1** (`omi-health`) | 0.6B | ✅ tuned | ✅ (Parakeet-TDT) | sherpa-onnx / onnx-asr | **CC-BY-4.0** | **#1 open medical WER.** Registry-added; needs the Parakeet-TDT adapter. Strong candidate to replace MedASR (cleaner license, streaming). |
+| **Parakeet-TDT-0.6B-EN-Medical** (`yuriyvnv/…`) | 0.6B | ✅ tuned | ✅ fast | NeMo / ONNX | Apache-lineage | Eval candidate — fast + medical + open |
 | **Whisper-small-medical** (`oegbo/…`) | 244M | ✅ tuned | ~chunked | whisper.cpp / ONNX ✅ | MIT (Whisper) | Eval candidate (watch silence-hallucination) |
 | **Gemma 4 E4B/12B (audio)** | 4B/12B | general | ~30s calls | llama.cpp (mmproj, BF16) ✅ (since Jun 2026) | Apache 2.0 | Alt "single-call" engine (audio→formatted text) |
 | **Voxtral Mini 3B** (`mistralai/Voxtral-Mini-3B-2507`) | 3B | general | ❌ batch | llama.cpp (GGUF + audio) ✅ | Apache 2.0 | Feasible alt engine (multilingual, on-device) |
@@ -35,6 +36,7 @@ Notes:
 | Model | Active/Total | Why | RAM (Q4) | CPU speed | License | Pick |
 |-------|--------------|-----|----------|-----------|---------|------|
 | **LFM2.5-8B-A1B** (`LiquidAI/…`) | 1.5B / 8.3B MoE | IFEval 91.84, non-halluc 63.47, ~6GB, very fast | ~6 GB | 146–253 tok/s | LFM 1.0 (commercial ok) | **Default** |
+| **Omi-Sum / sum-small** (`bartowski/sum-small-GGUF`) | 3.8B (Phi-3-mini) | Purpose-built dialogue → **SOAP** notes | ~2.4 GB | fast | **MIT** | Auto-download wired; great for clinical-note formatting |
 | **Gemma 4 E4B** | 4.5B eff | Strong general editor, fully open | ~4–5 GB | 8–25 tok/s (x64) | Apache 2.0 | Open-source default |
 | **MedGemma 1.5 4B** | 4B | Best medical surface-form repair | ~3.5–5 GB | 8–25 tok/s | HAI-DEF (gated) | Opt-in "medical mode" |
 | **Qwen3-0.6B** | 0.6B | Ultra-fast, light tidy only (weak) | ~1 GB | very fast | Apache 2.0 | Ultra-light mode |

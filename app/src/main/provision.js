@@ -30,6 +30,12 @@ const CATALOG = {
     approxBytes: 0.5e9,
     label: 'Qwen3-0.6B (Q4_K_M)',
   },
+  'omi-sum-3b': {
+    repo: 'bartowski/sum-small-GGUF',   // Omi-Sum (sum-small), Phi-3-mini fine-tune, MIT
+    file: 'sum-small-Q4_K_M.gguf',
+    approxBytes: 2.4e9,
+    label: 'Omi-Sum (sum-small) — clinical SOAP',
+  },
   'medgemma-4b': {
     repo: 'unsloth/medgemma-1.5-4b-it-GGUF',
     file: 'medgemma-1.5-4b-it-Q4_K_M.gguf',
