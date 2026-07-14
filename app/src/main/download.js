@@ -6,12 +6,14 @@
 
 const fs = require('fs');
 const https = require('https');
+const http = require('http');
 const { URL } = require('url');
 
 function request(url, headers, onResponse, onError) {
   const u = new URL(url);
-  const req = https.get(
-    { hostname: u.hostname, path: u.pathname + u.search, headers },
+  const lib = u.protocol === 'http:' ? http : https;   // follow http redirects too
+  const req = lib.get(
+    { hostname: u.hostname, port: u.port || undefined, path: u.pathname + u.search, headers },
     onResponse,
   );
   req.on('error', onError);
@@ -53,12 +55,19 @@ function downloadFile(url, dest, { headers = {}, onProgress, redirectsLeft = 5 }
         return reject(new Error(`HTTP ${res.statusCode} for ${url}`));
       }
 
+      // If we sent a Range to resume but the server ignored it and returned the
+      // WHOLE file (200), we must NOT append to the partial — that produces a
+      // corrupt ~2x file. Restart the partial from scratch in that case.
+      const append = received > 0 && res.statusCode === 206;
+      if (received > 0 && res.statusCode === 200) received = 0;
+
       const totalHeader = Number(res.headers['content-length'] || 0);
       const total = res.statusCode === 206 ? received + totalHeader : totalHeader;
-      const out = fs.createWriteStream(partial, { flags: received > 0 ? 'a' : 'w' });
+      const out = fs.createWriteStream(partial, { flags: append ? 'a' : 'w' });
+      res.on('error', (e) => { try { out.destroy(); } catch (x) {} reject(e); });   // surface mid-body ECONNRESET
       res.on('data', (chunk) => {
         received += chunk.length;
-        if (onProgress && total) onProgress({ received, total, pct: Math.floor((received / total) * 100) });
+        if (onProgress && total) onProgress({ received, total, pct: Math.min(100, Math.floor((received / total) * 100)) });
       });
       res.pipe(out);
       out.on('finish', () => out.close(() => {
@@ -67,7 +76,10 @@ function downloadFile(url, dest, { headers = {}, onProgress, redirectsLeft = 5 }
       }));
       out.on('error', reject);
     }, reject);
-    req.end();
+    // Idle timeout: if the socket goes quiet for 60s (half-open stall after a
+    // reset), abort so the promise rejects instead of hanging forever. The
+    // caller can retry and resume from the .part file.
+    req.setTimeout(60000, () => req.destroy(new Error('download stalled (no data for 60s)')));
   });
 }
 
