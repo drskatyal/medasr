@@ -26,6 +26,7 @@ Cross-platform (Windows / macOS / Linux). The built-in set:
 | "open calculator" | Calculator |
 | "open pacs" / "launch pacs" | Your configured PACS/app (see below) |
 | "show desktop" / "minimize all" / "minimise all" | Minimize all windows |
+| "start dictation" / "begin dictation" / "start listening" | Begin a dictation session (hands-free) |
 | "stop dictation" / "stop listening" / "stop recording" / "finish dictation" | End the current dictation |
 
 ### "Open PACS" target
@@ -53,6 +54,32 @@ normal abdomen = No acute abdominal abnormality. The visualized bowel is unremar
 
 You can also prefix a trigger with "insert" or "template" ("insert normal
 chest") if that's more natural to say.
+
+## Always-on listening (Vosk)
+
+By default a tiny streaming recognizer (**Vosk small en-US, ~40 MB, Apache-2.0**)
+runs continuously in the background so commands — and especially **"start
+dictation"** / **"stop dictation"** — work hands-free, *without* pressing the
+hotkey and *without* being gated by mic on/off. Toggle in **Settings → "Always
+listen for commands"** (`alwaysOnCommands`).
+
+- It is **not** used for the report text. MedASR (far more accurate for medical
+  dictation) still does all transcription. Vosk only ever fires on a recognized
+  command from the fixed list; matching is strict (whole utterance == trigger),
+  so ordinary speech never launches anything.
+- **Division of labour:** while you're dictating, in-session commands and macros
+  are handled by MedASR (so the command words are swallowed, not typed into the
+  report). Mic control ("start/stop dictation") is handled by the always-on
+  listener in every state and is idempotent. When the mic is idle, the always-on
+  listener also runs app/system commands and types macros into the focused field.
+- **Privacy/CPU:** the mic stays *warm* whenever this is on (that's what makes
+  "start dictation" instant). It's a small model with low CPU cost. Turn the
+  setting off to disable background listening entirely — then commands only work
+  during an active dictation session, and you start with the hotkey/orb.
+- The model auto-downloads on first enable (a **Download** button in the Models
+  status panel shows progress). Requires the optional `vosk` native module; if
+  it isn't available the app runs exactly as before, just without hands-free
+  start.
 
 ## Ordering
 

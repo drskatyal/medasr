@@ -36,6 +36,7 @@ async function init() {
   $('voiceCommands').checked = settings.voiceCommands !== false;
   $('voiceNav').checked = settings.voiceNav !== false;
   $('voiceActions').checked = settings.voiceActions !== false;
+  $('alwaysOnCommands').checked = settings.alwaysOnCommands !== false;
   $('macros').value = settings.macros || '';
   $('pacsCommand').value = settings.pacsCommand || '';
   $('hotkey').value = settings.hotkey || 'Alt+Q';
@@ -64,9 +65,16 @@ async function init() {
     $('stVad').textContent = $('realtimeMode').checked ? s.vad : 'off';
     $('btnDlVad').style.display = $('realtimeMode').checked ? 'inline-block' : 'none';
     btnState($('btnDlVad'), s.vad, /download|loading/i, /ready/i);
+    // Always-on commands (Vosk)
+    const cmdOn = $('alwaysOnCommands').checked;
+    $('stCmd').textContent = cmdOn ? (s.commands || 'off') : 'off';
+    $('btnDlCmd').style.display = cmdOn ? 'inline-block' : 'none';
+    btnState($('btnDlCmd'), s.commands || 'off', /download|loading/i, /ready/i);
   }
   $('btnDlClean').addEventListener('click', async () => { $('btnDlClean').textContent = 'Starting…'; $('btnDlClean').disabled = true; await window.medasr.setup('cleanup'); });
   $('btnDlVad').addEventListener('click', async () => { $('btnDlVad').textContent = 'Starting…'; $('btnDlVad').disabled = true; await window.medasr.setup('vad'); });
+  $('btnDlCmd').addEventListener('click', async () => { $('btnDlCmd').textContent = 'Starting…'; $('btnDlCmd').disabled = true; await window.medasr.setup('commands'); });
+  $('alwaysOnCommands').addEventListener('change', refreshStatus);
   refreshStatus();
   setInterval(refreshStatus, 1200);
 
@@ -98,6 +106,7 @@ async function init() {
       voiceCommands: $('voiceCommands').checked,
       voiceNav: $('voiceNav').checked,
       voiceActions: $('voiceActions').checked,
+      alwaysOnCommands: $('alwaysOnCommands').checked,
       macros: $('macros').value,
       pacsCommand: $('pacsCommand').value.trim(),
       hotkey: $('hotkey').value.trim() || 'Alt+Q',

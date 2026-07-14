@@ -22,6 +22,7 @@ const { parseNav, navigate } = require('./nav');
 const actions = require('./actions');
 const { SileroVad } = require('./vad');
 const { RealtimeSession } = require('./realtime');
+const { VoskCommand } = require('./vosk_cmd');
 const provision = require('./provision');
 const engines = require('./engines');
 const models = require('./models');
@@ -36,6 +37,8 @@ let transcribing = false;  // re-entrancy guard so transcriptions can't overlap/
 let vadStatus = 'not loaded';  // 'not loaded'|'downloading'|'loading'|'ready'|'error: …'
 let sttActive = 'none';        // engine actually running
 let sttNote = '';              // e.g. fallback reason
+let voskCmd = null;            // always-on command listener (Vosk)
+let cmdStatus = 'off';         // 'off'|'downloading …'|'loading'|'ready'|'error: …'
 
 function cleaningStatus() {
   if (!settings.cleanupEnabled) return 'off';
@@ -68,6 +71,9 @@ function createPill() {
     },
   });
   pill.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  // Re-assert the command-listen state once the renderer is up (in case the
+  // listener became ready before the orb finished loading).
+  pill.webContents.on('did-finish-load', () => { if (voskCmd && settings.alwaysOnCommands) setCmdListen(true); });
   pill.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   // Park it bottom-centre of the primary display and keep it visible (no
   // show/hide cycling -> no flicker). State is conveyed by orb colour only.
@@ -140,6 +146,60 @@ async function ensureRealtime() {
     });
   }
   return rt;
+}
+
+// ---------- always-on command listener (Vosk) ----------
+// A small streaming recognizer runs continuously so commands and "start/stop
+// dictation" work hands-free, even when the dictation mic is off. It never
+// transcribes the report (MedASR does); it only fires on recognized commands.
+function setCmdListen(on) { if (pill && !pill.isDestroyed()) pill.webContents.send('cmd-listen', on); }
+
+async function ensureCommandListener() {
+  if (voskCmd || !settings.alwaysOnCommands) return;
+  try {
+    cmdStatus = 'downloading'; refreshTrayMenu();
+    const dir = await provision.ensureVoskModel({ onProgress: ({ pct }) => { cmdStatus = `downloading ${pct}%`; } });
+    cmdStatus = 'loading'; refreshTrayMenu();
+    voskCmd = new VoskCommand({ modelDir: dir, onCommand: (t) => handleAlwaysOnCommand(t).catch(() => {}), log: (m) => log('[cmd]', m) });
+    voskCmd.load();
+    cmdStatus = 'ready'; refreshTrayMenu();
+    setCmdListen(true);
+    log('always-on command listener ready');
+  } catch (e) {
+    cmdStatus = 'error: ' + (e && e.message || e); refreshTrayMenu();
+    log('command listener unavailable (continuing without it):', e && e.message || e);
+  }
+}
+
+function stopCommandListener() {
+  setCmdListen(false);
+  if (voskCmd) { try { voskCmd.free(); } catch (e) {} voskCmd = null; }
+  cmdStatus = 'off'; refreshTrayMenu();
+}
+
+// A final utterance from the always-on listener. Internal (mic control) fires in
+// any state and is idempotent; app/system commands and macros fire only when
+// idle — during dictation the in-session MedASR path owns them so the command
+// words are swallowed instead of being typed into the report.
+async function handleAlwaysOnCommand(text) {
+  if (!settings.alwaysOnCommands || !text) return;
+  const cmd = actions.matchCommand(text);
+  if (cmd && cmd.type === 'internal') {
+    log('always-on command:', cmd.action);
+    await actions.executeCommand(cmd, { hooks: {
+      startDictation: () => setImmediate(() => { if (!recording) startRecording(); }),
+      stopDictation: () => setImmediate(() => { if (recording) stopRecording(); }),
+    } });
+    return;
+  }
+  if (recording) return;   // in-session path owns non-internal commands/macros
+  if (cmd) {
+    log('always-on command:', cmd.triggers[0]);
+    await actions.executeCommand(cmd, { pacsCommand: settings.pacsCommand || '' });
+    return;
+  }
+  const macro = actions.matchMacro(text, actions.parseMacros(settings.macros || ''));
+  if (macro != null && settings.autoInject) { log('always-on macro'); await injectText(macro); }
 }
 
 async function startRecording() {
@@ -282,6 +342,13 @@ ipcMain.on('audio-frame', (_e, arr) => {
   }
 });
 
+// Always-on command listener: renderer streams 16k PCM frames here continuously.
+ipcMain.on('cmd-frame', (_e, arr) => {
+  if (voskCmd && settings.alwaysOnCommands) {
+    voskCmd.feed(arr instanceof Float32Array ? arr : new Float32Array(arr));
+  }
+});
+
 // Renderer forwards its console/errors here so they show in the terminal.
 ipcMain.on('renderer-log', (_e, msg) => log('[renderer]', msg));
 
@@ -308,6 +375,7 @@ ipcMain.handle('get-status', () => ({
   cleaning: cleaningStatus(),
   realtime: !!settings.realtimeMode,
   vad: vadStatus,
+  commands: settings.alwaysOnCommands ? cmdStatus : 'off',
 }));
 
 // "Set up / Download now" buttons in the settings window.
@@ -315,6 +383,7 @@ ipcMain.handle('setup', async (_e, what) => {
   try {
     if (what === 'cleanup') { settings.cleanupEnabled = true; models.saveSettings(settings); await ensureCleanupLlm(); }
     else if (what === 'vad') { await ensureRealtime(); }
+    else if (what === 'commands') { settings.alwaysOnCommands = true; models.saveSettings(settings); await ensureCommandListener(); }
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 });
@@ -335,6 +404,9 @@ ipcMain.handle('set-settings', (_e, s) => {
   // If the user just turned cleaning on, provision + load the model now.
   if (settings.cleanupEnabled && !llm) ensureCleanupLlm();
   if (!settings.cleanupEnabled && llm) { llm.stop(); llm = null; llmState = 'off'; refreshTrayMenu(); }
+  // Toggle the always-on command listener to match the setting.
+  if (settings.alwaysOnCommands && !voskCmd) ensureCommandListener();
+  if (!settings.alwaysOnCommands && voskCmd) stopCommandListener();
   return settings;
 });
 
@@ -427,6 +499,8 @@ async function boot() {
   // Cleanup LLM: auto-download the selected model's weights on first use and
   // cache them, then load the bundled engine. All off unless cleanup is enabled.
   if (settings.cleanupEnabled) ensureCleanupLlm();
+  // Always-on command listener (hands-free "start/stop dictation" + commands).
+  if (settings.alwaysOnCommands) ensureCommandListener();
 
   refreshTrayMenu();
   initAutoUpdate();
@@ -519,7 +593,7 @@ async function ensureCleanupLlm() {
   }
 }
 
-app.on('will-quit', () => { if (llm) llm.stop(); });
+app.on('will-quit', () => { if (llm) llm.stop(); if (voskCmd) { try { voskCmd.free(); } catch (e) {} } });
 
 if (process.platform === 'darwin' && app.dock) app.dock.hide(); // menubar app
 if (!app.requestSingleInstanceLock()) app.quit();

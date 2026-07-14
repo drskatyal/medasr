@@ -36,6 +36,8 @@
       <button id="btnDlClean" style="display:none">Download</button></div>
     <div class="mrow"><span><b>Real-time (VAD)</b><br><span id="stVad" class="muted">…</span></span>
       <button id="btnDlVad" style="display:none">Download</button></div>
+    <div class="mrow"><span><b>Always-on commands (Vosk)</b><br><span id="stCmd" class="muted">…</span></span>
+      <button id="btnDlCmd" style="display:none">Download</button></div>
   </div>
   <style>
     .mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(128,128,128,.15)}
@@ -80,6 +82,13 @@
     <input type="checkbox" id="voiceActions" />
     <label for="voiceActions" style="margin:0">Voice commands &amp; macros (“open chrome”, “show desktop”, “stop dictation”, and your templates)</label>
   </div>
+
+  <div class="row check">
+    <input type="checkbox" id="alwaysOnCommands" />
+    <label for="alwaysOnCommands" style="margin:0">Always listen for commands (hands-free “start/stop dictation”, no hotkey)</label>
+  </div>
+  <div class="hint" style="margin:-8px 0 16px">A tiny background recognizer (Vosk, ~40&nbsp;MB) keeps the mic warm so commands work even when
+    dictation is off. It never transcribes your report — only listens for the fixed command list.</div>
 
   <div class="row">
     <label for="macros">Macros — one per line as <code>trigger = expansion</code></label>

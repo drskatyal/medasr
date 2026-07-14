@@ -38,6 +38,7 @@ let nativeSR = 48000;
 let warm = false;         // mic pipeline is alive and buffering
 let recording = false;    // push-to-talk capture in progress
 let streaming = false;    // real-time mode: stream frames to main
+let streamingCmd = false; // always-on command listener: stream frames to Vosk
 let preRoll = [];         // rolling last ~PREROLL_S of audio (Float32Array chunks)
 let collected = [];       // chunks captured during the active recording
 
@@ -71,6 +72,8 @@ async function ensureWarm() {
     while (preRoll.length > 1 && total - preRoll[0].length >= maxPre) total -= preRoll.shift().length;
     if (recording) collected.push(data);
     if (streaming) { try { window.medasr.sendFrame(streamResample16k(data, nativeSR)); } catch (err) {} }
+    // Always-on command listener taps the same mic (separate resampler phase).
+    if (streamingCmd) { try { window.medasr.sendCmdFrame(cmdResample16k(data, nativeSR)); } catch (err) {} }
   };
   source.connect(processor);
   processor.connect(audioCtx.destination);
@@ -118,6 +121,29 @@ function streamResample16k(input, srcSR) {
   return Float32Array.from(out);
 }
 
+// Independent stateful resampler for the always-on command stream, so its phase
+// never collides with the real-time dictation stream (they tap the same mic).
+let rsPosCmd = 0;
+let rsPrevCmd = 0;
+function cmdResample16k(input, srcSR) {
+  if (srcSR === TARGET_SR) return input;
+  const ratio = srcSR / TARGET_SR;
+  const ext = new Float32Array(input.length + 1);
+  ext[0] = rsPrevCmd; ext.set(input, 1);
+  const out = [];
+  let pos = rsPosCmd;
+  const last = ext.length - 1;
+  while (pos < last) {
+    const i0 = Math.floor(pos);
+    const frac = pos - i0;
+    out.push(ext[i0] + (ext[i0 + 1] - ext[i0]) * frac);
+    pos += ratio;
+  }
+  rsPosCmd = pos - last;
+  rsPrevCmd = input[input.length - 1];
+  return Float32Array.from(out);
+}
+
 function computeRms(frame) {
   let s = 0;
   for (let i = 0; i < frame.length; i++) s += frame[i] * frame[i];
@@ -151,6 +177,15 @@ function resampleTo16k(input, srcSR) {
 }
 
 window.medasr.onState(setState);
+// Always-on command listener: bring up the mic and stream continuously.
+window.medasr.onCmdListen(async (on) => {
+  if (on) {
+    const ok = await ensureWarm();
+    if (ok) { rsPosCmd = 0; rsPrevCmd = 0; streamingCmd = true; rlog('command listener streaming on'); }
+  } else {
+    streamingCmd = false; rlog('command listener streaming off');
+  }
+});
 window.medasr.onRecord(async (msg) => {
   if (msg.action === 'start') {
     if (msg.mode === 'realtime') {

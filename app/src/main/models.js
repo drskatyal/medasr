@@ -49,6 +49,7 @@ const DEFAULTS = {
   voiceCommands: true,   // spoken punctuation/formatting ("period", "new paragraph", …)
   voiceNav: true,        // spoken navigation ("go to liver", "find <term>") via Find
   voiceActions: true,    // spoken commands ("open chrome", "show desktop", "stop dictation") + macros
+  alwaysOnCommands: true, // Vosk background listener: hands-free "start/stop dictation" + commands, mic always warm
   macros: [              // user-editable "trigger = expansion" templates (typed on match)
     'normal chest = No acute cardiopulmonary process. The heart size is normal. The lungs are clear. No pleural effusion or pneumothorax.',
     'normal abdomen = No acute abdominal abnormality. The visualized bowel is unremarkable. No free air or free fluid.',

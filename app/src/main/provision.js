@@ -101,6 +101,51 @@ async function ensureVadModel({ onProgress } = {}) {
   return dest;
 }
 
+// Vosk small English model (~40MB, Apache-2.0) for the always-on command
+// listener. Downloaded as a .zip and extracted into models/vosk-small/ (the
+// directory Vosk's Model() wants). Cross-platform extraction: adm-zip if
+// available, else the platform's unzip/Expand-Archive.
+const VOSK_ZIP_URL = 'https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip';
+const VOSK_DIR_NAME = 'vosk-model-small-en-us-0.15';
+
+function voskModelDir() {
+  // The extracted model dir contains am/, conf/, graph/, etc.
+  return path.join(modelsDir(), VOSK_DIR_NAME);
+}
+
+function isVoskInstalled() {
+  const d = voskModelDir();
+  return fs.existsSync(path.join(d, 'conf', 'model.conf')) || fs.existsSync(path.join(d, 'am', 'final.mdl'));
+}
+
+function extractZip(zipPath, destDir) {
+  // Prefer adm-zip (pure JS, cross-platform) if present; fall back to the OS.
+  try {
+    const AdmZip = require('adm-zip');
+    new AdmZip(zipPath).extractAllTo(destDir, true);
+    return;
+  } catch (e) { /* fall through to system tools */ }
+  const { execFileSync } = require('child_process');
+  if (process.platform === 'win32') {
+    execFileSync('powershell', ['-NoProfile', '-Command',
+      `Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${destDir}' -Force`], { windowsHide: true });
+  } else {
+    execFileSync('unzip', ['-o', zipPath, '-d', destDir]);
+  }
+}
+
+async function ensureVoskModel({ onProgress } = {}) {
+  if (isVoskInstalled()) return voskModelDir();
+  const zip = path.join(modelsDir(), 'vosk-small.zip');
+  console.log('[provision] vosk: downloading small command model');
+  await downloadFile(VOSK_ZIP_URL, zip, { onProgress });
+  console.log('[provision] vosk: extracting');
+  extractZip(zip, modelsDir());
+  try { fs.unlinkSync(zip); } catch (e) {}
+  if (!isVoskInstalled()) throw new Error('Vosk model extraction failed');
+  return voskModelDir();
+}
+
 function localPathFor(id) {
   const entry = CATALOG[id];
   if (!entry) return null;
@@ -130,4 +175,7 @@ async function ensureModel(id, { hfToken, onProgress } = {}) {
   return dest;
 }
 
-module.exports = { CATALOG, modelsDir, sttModelDir, ensureVadModel, localPathFor, isInstalled, ensureModel };
+module.exports = {
+  CATALOG, modelsDir, sttModelDir, ensureVadModel, localPathFor, isInstalled, ensureModel,
+  ensureVoskModel, voskModelDir, isVoskInstalled,
+};

@@ -32,6 +32,7 @@ const DEFAULT_COMMANDS = [
   { type: 'runApp', triggers: ['open pacs', 'open p a c s', 'launch pacs'], app: { custom: true } },
   { type: 'systemKey', triggers: ['show desktop', 'minimize all', 'minimise all'], key: 'show-desktop' },
   { type: 'internal', triggers: ['stop dictation', 'stop listening', 'stop recording', 'finish dictation'], action: 'stopDictation' },
+  { type: 'internal', triggers: ['start dictation', 'begin dictation', 'start listening', 'start recording'], action: 'startDictation' },
 ];
 
 // ---- macros: "trigger = expansion" lines (expansion may use \n) ----
@@ -85,11 +86,13 @@ function systemKey(key) {
   else if (MAC) execFile('osascript', ['-e', 'tell application "System Events" to key code 103'], () => {});
 }
 
-// Execute a matched command. hooks: { stopDictation }. Returns true if handled.
+// Execute a matched command. hooks: { stopDictation, startDictation }.
 async function executeCommand(cmd, { pacsCommand, hooks } = {}) {
+  hooks = hooks || {};
   if (cmd.type === 'runApp') launchApp(cmd.app, pacsCommand);
   else if (cmd.type === 'systemKey') systemKey(cmd.key);
-  else if (cmd.type === 'internal' && cmd.action === 'stopDictation' && hooks && hooks.stopDictation) hooks.stopDictation();
+  else if (cmd.type === 'internal' && cmd.action === 'stopDictation' && hooks.stopDictation) hooks.stopDictation();
+  else if (cmd.type === 'internal' && cmd.action === 'startDictation' && hooks.startDictation) hooks.startDictation();
   return true;
 }
 
