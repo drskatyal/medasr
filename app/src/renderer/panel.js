@@ -21,7 +21,8 @@ async function init() {
 
   fillSelect($('stt'), engines.stt, settings.sttEngine,
     (e) => e.label + (e.implemented ? '' : '  (needs setup)'));
-  fillSelect($('cleanup'), engines.cleanup, settings.cleanupModel || 'off');
+  // The dropdown shows the true state: 'Off' unless cleaning is actually enabled.
+  fillSelect($('cleanup'), engines.cleanup, settings.cleanupEnabled ? (settings.cleanupModel || 'off') : 'off');
 
   const sttHint = () => {
     const e = engines.stt.find((x) => x.id === $('stt').value);
@@ -35,16 +36,19 @@ async function init() {
   $('modelPath').value = settings.llmModelPath || '';
 
   $('save').addEventListener('click', async () => {
-    const cleanupModel = $('cleanup').value;
+    const sel = $('cleanup').value;
+    const enabled = sel !== 'off';
     await window.medasr.setSettings({
       sttEngine: $('stt').value,
-      cleanupModel,
-      cleanupEnabled: cleanupModel !== 'off',
+      cleanupModel: enabled ? sel : (settings.cleanupModel || 'lfm2.5-8b-a1b'),
+      cleanupEnabled: enabled,
       autoInject: $('autoInject').checked,
       hotkey: $('hotkey').value.trim() || 'Alt+Q',
       llmModelPath: $('modelPath').value.trim(),
     });
-    const s = $('saved'); s.classList.add('show'); setTimeout(() => s.classList.remove('show'), 2500);
+    const s = $('saved');
+    s.textContent = enabled ? 'Saved ✓ — downloading/loading the cleaning model…' : 'Saved ✓';
+    s.classList.add('show'); setTimeout(() => s.classList.remove('show'), 3500);
   });
 }
 

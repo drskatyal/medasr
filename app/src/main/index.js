@@ -22,6 +22,16 @@ const models = require('./models');
 
 let llm = null;      // cleanup LLM sidecar (only started when enabled + configured)
 let settingsWin = null;
+let llmState = 'off';  // 'off' | 'downloading' | 'loading' | 'ready'
+let llmPct = 0;
+
+function cleaningStatus() {
+  if (!settings.cleanupEnabled) return 'off';
+  if (llmState === 'downloading') return `downloading ${llmPct}%`;
+  if (llmState === 'loading') return 'loading model…';
+  if (llmState === 'ready') return `${settings.cleanupModel} ✓ ready`;
+  return settings.cleanupModel || 'on';
+}
 
 let tray = null;
 let pill = null;         // small always-on-top status window (the "pill")
@@ -158,7 +168,7 @@ ipcMain.handle('set-settings', (_e, s) => {
   if (settings.sttEngine !== prevStt) loadAsr();
   // If the user just turned cleaning on, provision + load the model now.
   if (settings.cleanupEnabled && !llm) ensureCleanupLlm();
-  if (wasCleanup && !settings.cleanupEnabled && llm) { llm.stop(); llm = null; }
+  if (!settings.cleanupEnabled && llm) { llm.stop(); llm = null; llmState = 'off'; refreshTrayMenu(); }
   return settings;
 });
 
@@ -194,10 +204,7 @@ function refreshTrayMenu() {
       label: 'Auto-type into focused app', type: 'checkbox', checked: settings.autoInject,
       click: (i) => { settings.autoInject = i.checked; models.saveSettings(settings); },
     },
-    {
-      label: `Cleaning: ${settings.cleanupEnabled ? (settings.cleanupModel || 'on') : 'off'}`,
-      enabled: false,
-    },
+    { label: `Cleaning: ${cleaningStatus()}`, enabled: false },
     { type: 'separator' },
     { label: 'Settings…', click: openSettings },
     { label: 'Quit', click: () => app.quit() },
@@ -302,13 +309,17 @@ async function ensureCleanupLlm() {
     let modelPath = settings.llmModelPath;   // explicit override wins
     if (!modelPath || !require('fs').existsSync(modelPath)) {
       if (!provision.isInstalled(id)) {
-        setPill('downloading');
-        notify('Downloading cleaning model', `${id} — this happens once (a few GB). It’ll be cached after.`);
+        llmState = 'downloading'; llmPct = 0; refreshTrayMenu();
+        setPill('downloading', 0);
+        notify('Downloading cleaning model', `${id} — one-time (a few GB), cached after. Watch the mic orb / tray for progress.`);
         let lastPct = -1;
         modelPath = await provision.ensureModel(id, {
           hfToken: process.env.HF_TOKEN,
           onProgress: ({ pct }) => {
-            if (pct !== lastPct && pct % 5 === 0) { lastPct = pct; log(`download ${id}: ${pct}%`); setPill('downloading', pct); }
+            llmPct = pct;
+            if (pct !== lastPct && pct % 5 === 0) {
+              lastPct = pct; log(`download ${id}: ${pct}%`); setPill('downloading', pct); refreshTrayMenu();
+            }
           },
         });
         setPill('idle');
@@ -316,10 +327,14 @@ async function ensureCleanupLlm() {
         modelPath = provision.localPathFor(id);
       }
     }
+    llmState = 'loading'; refreshTrayMenu();
     llm = await new LlmEngine({ modelPath }).load();
+    llmState = 'ready'; refreshTrayMenu();
     log('cleanup LLM ready:', id);
+    notify('Cleaning ready', `${id} is loaded — dictation will be auto-cleaned.`);
   } catch (e) {
     setPill('idle');
+    llmState = 'off'; refreshTrayMenu();
     log('cleanup LLM unavailable (continuing without it):', e && e.message || e);
     notify('Cleaning unavailable', 'Could not load the cleaning model — dictation still works. See docs/MODELS.md.');
     llm = null;
