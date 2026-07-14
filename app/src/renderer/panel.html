@@ -29,16 +29,20 @@
   <h1>FlowRad Open Source VR — Settings</h1>
   <p class="muted">All processing is on-device. Cleaning is optional.</p>
 
-  <div id="statusBox" style="background:rgba(128,128,128,.1); border-radius:10px; padding:12px 14px; margin-bottom:18px; font-size:13px; line-height:1.7">
-    <div><b>Speech-to-text:</b> <span id="stStt">…</span></div>
-    <div><b>Cleaning:</b> <span id="stClean">…</span></div>
-    <div><b>Real-time (VAD):</b> <span id="stVad">…</span></div>
-    <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
-      <button id="btnSetupStt" style="display:none">Set up input model</button>
-      <button id="btnDlClean" style="display:none">Download cleaning model</button>
-      <button id="btnDlVad" style="display:none">Download real-time model</button>
-    </div>
+  <div id="statusBox" style="background:rgba(128,128,128,.1); border-radius:10px; padding:14px; margin-bottom:18px; font-size:13px">
+    <div style="font-weight:700; margin-bottom:8px">Models</div>
+    <div class="mrow"><span><b>Input (speech-to-text)</b><br><span id="stStt" class="muted">…</span></span></div>
+    <div class="mrow"><span><b>Cleaning</b><br><span id="stClean" class="muted">…</span></span>
+      <button id="btnDlClean" style="display:none">Download</button></div>
+    <div class="mrow"><span><b>Real-time (VAD)</b><br><span id="stVad" class="muted">…</span></span>
+      <button id="btnDlVad" style="display:none">Download</button></div>
   </div>
+  <style>
+    .mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(128,128,128,.15)}
+    .mrow .muted{opacity:.75;font-size:12px}
+    .mrow button{white-space:nowrap}
+    .mrow button:disabled{opacity:.5;cursor:default}
+  </style>
 
   <div class="row">
     <label for="stt">Primary input (speech-to-text)</label>

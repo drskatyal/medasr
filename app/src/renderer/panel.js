@@ -39,26 +39,33 @@ async function init() {
   $('modelPath').value = settings.llmModelPath || '';
 
   // Live status panel + setup buttons (so setup/errors are visible, no pop-ups).
+  function btnState(btn, state, downloadingRe, readyRe) {
+    if (readyRe.test(state)) { btn.textContent = '✓ Installed'; btn.disabled = true; }
+    else if (downloadingRe.test(state)) { btn.textContent = state.replace(/^.*?(\d+%).*$/, 'Downloading $1'); if (!/\d+%/.test(btn.textContent)) btn.textContent = 'Working…'; btn.disabled = true; }
+    else { btn.textContent = 'Download'; btn.disabled = false; }
+  }
   async function refreshStatus() {
     let s;
     try { s = await window.medasr.getStatus(); } catch (e) { return; }
+    // Input model: make the ACTIVE engine obvious.
     $('stStt').textContent = s.modelReady
-      ? `${s.sttActive}${s.sttNote && s.sttNote !== 'running' ? ' — ' + s.sttNote : ' (running)'}`
+      ? (s.sttActive === s.sttSelected ? `${s.sttActive} — running`
+         : `${s.sttActive} running (you selected ${s.sttSelected}: ${s.sttNote || 'not available'})`)
       : (s.sttNote || 'not loaded');
-    $('stClean').textContent = s.cleaning;
-    $('stVad').textContent = s.realtime ? s.vad : 'off';
-    // show setup buttons contextually
-    $('btnSetupStt').style.display = (s.sttNote && /needs|not runnable|failed/.test(s.sttNote)) ? 'inline-block' : 'none';
-    $('btnDlClean').style.display = (s.cleaning === 'off' || /error/.test(s.cleaning)) && $('cleanup').value !== 'off' ? 'inline-block' : 'none';
-    $('btnDlVad').style.display = (s.realtime && s.vad !== 'ready' && !/download|load/.test(s.vad)) ? 'inline-block' : 'none';
+    // Cleaning
+    const cleanSel = $('cleanup').value;
+    $('stClean').textContent = cleanSel === 'off' ? 'off' : `${cleanSel} — ${s.cleaning}`;
+    $('btnDlClean').style.display = cleanSel === 'off' ? 'none' : 'inline-block';
+    btnState($('btnDlClean'), s.cleaning, /download|loading/i, /ready|✓/i);
+    // Real-time VAD
+    $('stVad').textContent = $('realtimeMode').checked ? s.vad : 'off';
+    $('btnDlVad').style.display = $('realtimeMode').checked ? 'inline-block' : 'none';
+    btnState($('btnDlVad'), s.vad, /download|loading/i, /ready/i);
   }
-  $('btnDlClean').addEventListener('click', async () => { $('btnDlClean').textContent = 'Downloading…'; await window.medasr.setup('cleanup'); });
-  $('btnDlVad').addEventListener('click', async () => { $('btnDlVad').textContent = 'Downloading…'; await window.medasr.setup('vad'); });
-  $('btnSetupStt').addEventListener('click', () => {
-    alert('This input model needs its files. See docs/PARAKEET.md in the repo for the one-time setup, then reopen Settings.');
-  });
+  $('btnDlClean').addEventListener('click', async () => { $('btnDlClean').textContent = 'Starting…'; $('btnDlClean').disabled = true; await window.medasr.setup('cleanup'); });
+  $('btnDlVad').addEventListener('click', async () => { $('btnDlVad').textContent = 'Starting…'; $('btnDlVad').disabled = true; await window.medasr.setup('vad'); });
   refreshStatus();
-  setInterval(refreshStatus, 1500);
+  setInterval(refreshStatus, 1200);
 
   // real-time / VAD controls
   $('realtimeMode').checked = !!settings.realtimeMode;

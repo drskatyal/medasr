@@ -28,12 +28,17 @@ async function resolveGgufFile(repo, preferred, hfToken) {
   try {
     const headers = hfToken ? { Authorization: `Bearer ${hfToken}` } : {};
     const info = await httpsGetJson(`https://huggingface.co/api/models/${repo}`, headers);
-    const ggufs = (info.siblings || []).map((s) => s.rfilename).filter((f) => /\.gguf$/i.test(f));
+    let ggufs = (info.siblings || []).map((s) => s.rfilename).filter((f) => /\.gguf$/i.test(f));
     if (!ggufs.length) return preferred;
+    // Exclude giant full-precision / multi-part files (F16/BF16/F32, "-of-").
+    const small = ggufs.filter((f) => !/(f16|bf16|f32|fp16)/i.test(f) && !/-\d{5}-of-\d{5}/i.test(f));
+    if (small.length) ggufs = small;
     return ggufs.find((f) => f === preferred)
       || ggufs.find((f) => /q4_k_m/i.test(f))
       || ggufs.find((f) => /q4/i.test(f))
-      || ggufs[0];
+      || ggufs.find((f) => /q5_k_m/i.test(f))
+      || ggufs.find((f) => /q3/i.test(f))
+      || ggufs.sort((a, b) => a.length - b.length)[0];
   } catch (e) { return preferred; }
 }
 
@@ -117,6 +122,7 @@ async function ensureModel(id, { hfToken, onProgress } = {}) {
 
   // Self-correct the filename against the repo's real file list.
   const file = await resolveGgufFile(entry.repo, entry.file, hfToken);
+  console.log(`[provision] ${id}: downloading ${entry.repo}/${file}`);
   const url = `https://huggingface.co/${entry.repo}/resolve/main/${encodeURIComponent(file)}`;
   const headers = {};
   if (entry.gated && hfToken) headers.Authorization = `Bearer ${hfToken}`;

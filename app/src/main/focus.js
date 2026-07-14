@@ -55,11 +55,14 @@ async function restoreTarget() {
   if (!target) return;
   try {
     if (process.platform === 'win32') {
+      // Only un-minimize if it's actually minimized — do NOT SW_RESTORE a
+      // maximized window (that shrinks it). Then bring it to the foreground.
       await ps(
         "Add-Type -Namespace Win -Name F -MemberDefinition '" +
         '[DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(System.IntPtr h);' +
+        '[DllImport(\"user32.dll\")] public static extern bool IsIconic(System.IntPtr h);' +
         "[DllImport(\"user32.dll\")] public static extern bool ShowWindow(System.IntPtr h,int c);'; " +
-        `$h=[System.IntPtr]${target}; [Win.F]::ShowWindow($h,9) | Out-Null; [Win.F]::SetForegroundWindow($h) | Out-Null`);
+        `$h=[System.IntPtr]${target}; if([Win.F]::IsIconic($h)){[Win.F]::ShowWindow($h,9)|Out-Null}; [Win.F]::SetForegroundWindow($h) | Out-Null`);
     } else if (process.platform === 'linux') {
       await sh('xdotool', ['windowactivate', '--sync', target]);
     } else if (process.platform === 'darwin') {
