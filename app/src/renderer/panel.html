@@ -53,15 +53,12 @@
   </div>
 
   <details>
-    <summary>Advanced — model files (for cleaning / audio engines)</summary>
+    <summary>Advanced</summary>
     <div class="row" style="margin-top:12px">
-      <label for="serverPath">llama-server binary path</label>
-      <input type="text" id="serverPath" placeholder="/path/to/llama-server" />
-    </div>
-    <div class="row">
-      <label for="modelPath">Cleanup model GGUF path</label>
-      <input type="text" id="modelPath" placeholder="/path/to/LFM2.5-8B-A1B-Q4_K_M.gguf" />
-      <div class="hint">See docs/MODELS.md for where to download each model.</div>
+      <label for="modelPath">Cleanup model file (optional override)</label>
+      <input type="text" id="modelPath" placeholder="Leave blank — auto-downloaded &amp; cached on first use" />
+      <div class="hint">The cleaning model downloads automatically the first time you enable
+        cleaning (a few GB, once) and is cached. Only set this to use your own GGUF file.</div>
     </div>
   </details>
 

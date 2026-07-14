@@ -13,8 +13,9 @@ function log(...a) { console.log('[medasr]', ...a); }
 
 const { Asr } = require('./asr');
 const { injectText } = require('./inject');
-const { LlmSidecar } = require('./llm');
+const { LlmEngine } = require('./llm');
 const { cleanupTranscript } = require('./cleanup');
+const provision = require('./provision');
 const engines = require('./engines');
 const models = require('./models');
 
@@ -59,8 +60,9 @@ function createPill() {
   });
 }
 
-// State is just an orb colour change; the window stays put.
-function setPill(state) { if (pill) pill.webContents.send('state', state); }
+// State is just an orb colour change; the window stays put. `pct` is used by
+// the 'downloading' state to show progress in the tooltip.
+function setPill(state, pct) { if (pill) pill.webContents.send('state', state, pct); }
 
 // ---------- recording lifecycle ----------
 function startRecording() {
@@ -145,9 +147,14 @@ ipcMain.handle('get-engines', () => ({
 }));
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_e, s) => {
+  const wasCleanup = settings.cleanupEnabled;
   settings = { ...settings, ...s };
   models.saveSettings(settings);
   registerHotkey();
+  refreshTrayMenu();
+  // If the user just turned cleaning on, provision + load the model now.
+  if (settings.cleanupEnabled && !llm) ensureCleanupLlm();
+  if (wasCleanup && !settings.cleanupEnabled && llm) { llm.stop(); llm = null; }
   return settings;
 });
 
@@ -257,24 +264,44 @@ async function boot() {
     log('NO MODEL FOUND at expected locations');
     notify('No model found', 'Convert the model first — see RUNBOOK.md.');
   }
-  // Optional: start the cleanup LLM sidecar if enabled and configured.
-  if (settings.cleanupEnabled && settings.llmServerPath && settings.llmModelPath) {
-    try {
-      llm = new LlmSidecar({
-        serverPath: settings.llmServerPath,
-        modelPath: settings.llmModelPath,
-        mmprojPath: settings.llmMmprojPath || undefined,
-      });
-      await llm.start();
-      log('cleanup LLM ready');
-    } catch (e) {
-      log('cleanup LLM failed to start (continuing without it):', e && e.message || e);
-      llm = null;
-    }
-  }
+  // Cleanup LLM: auto-download the selected model's weights on first use and
+  // cache them, then load the bundled engine. All off unless cleanup is enabled.
+  if (settings.cleanupEnabled) ensureCleanupLlm();
 
   refreshTrayMenu();
   initAutoUpdate();
+}
+
+// Provision (download-once + cache) the cleanup weights, then load the engine.
+async function ensureCleanupLlm() {
+  const id = settings.cleanupModel && settings.cleanupModel !== 'off'
+    ? settings.cleanupModel : 'lfm2.5-8b-a1b';
+  try {
+    let modelPath = settings.llmModelPath;   // explicit override wins
+    if (!modelPath || !require('fs').existsSync(modelPath)) {
+      if (!provision.isInstalled(id)) {
+        setPill('downloading');
+        notify('Downloading cleaning model', `${id} — this happens once (a few GB). It’ll be cached after.`);
+        let lastPct = -1;
+        modelPath = await provision.ensureModel(id, {
+          hfToken: process.env.HF_TOKEN,
+          onProgress: ({ pct }) => {
+            if (pct !== lastPct && pct % 5 === 0) { lastPct = pct; log(`download ${id}: ${pct}%`); setPill('downloading', pct); }
+          },
+        });
+        setPill('idle');
+      } else {
+        modelPath = provision.localPathFor(id);
+      }
+    }
+    llm = await new LlmEngine({ modelPath }).load();
+    log('cleanup LLM ready:', id);
+  } catch (e) {
+    setPill('idle');
+    log('cleanup LLM unavailable (continuing without it):', e && e.message || e);
+    notify('Cleaning unavailable', 'Could not load the cleaning model — dictation still works. See docs/MODELS.md.');
+    llm = null;
+  }
 }
 
 app.on('will-quit', () => { if (llm) llm.stop(); });

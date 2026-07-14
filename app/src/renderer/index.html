@@ -49,6 +49,11 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     body.cleaning { --c: var(--clean); }
+    body.downloading { --c: var(--clean); }
+    body.downloading .orb::after {
+      content: ''; position: absolute; inset: -6px; border-radius: 50%;
+      border: 3px solid transparent; border-top-color: #fff; animation: spin .8s linear infinite;
+    }
     body.done { --c: var(--done); }
 
     /* little tooltip bubble beside the orb (used for "cleaning…") */
@@ -58,7 +63,7 @@
       padding: 4px 9px; border-radius: 10px; white-space: nowrap; opacity: 0;
       transition: opacity .2s; pointer-events: none;
     }
-    body.cleaning .tip { opacity: 1; }
+    body.cleaning .tip, body.downloading .tip { opacity: 1; }
   </style>
 </head>
 <body>

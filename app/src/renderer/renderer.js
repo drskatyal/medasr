@@ -22,10 +22,16 @@ window.addEventListener('mouseup', () => {
   dragFrom = null;
 });
 
-function setState(state) {
+const tipEl = document.querySelector('.tip');
+function setState(state, pct) {
   const cls = state === 'recording' ? 'listening'
-    : (state === 'transcribing' || state === 'cleaning' || state === 'done') ? state : '';
+    : (state === 'transcribing' || state === 'cleaning' || state === 'done' || state === 'downloading') ? state : '';
   document.body.className = cls;
+  if (tipEl) {
+    tipEl.textContent = state === 'downloading'
+      ? `downloading… ${pct != null ? pct + '%' : ''}`
+      : 'cleaning…';
+  }
 }
 
 const TARGET_SR = 16000;

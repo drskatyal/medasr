@@ -44,25 +44,26 @@ commercial license + strong non-hallucination). Offer **Gemma 4 E4B** for a
 fully-Apache build and **MedGemma** as opt-in for users who accept its license.
 Qwen3-0.6B only for very low-power machines.
 
-## How to enable cleanup in the app (developer / power user)
+## How to enable cleanup in the app
 
-The cleanup LLM runs as a bundled **`llama.cpp` sidecar** (see
-`app/src/main/llm.js`). Everything is **off by default**; the app is unchanged
-until you configure it.
+**Now fully automatic** — no manual downloads or paths:
 
-1. Get a `llama-server` binary (from a llama.cpp release) for your OS.
-2. Download a cleanup GGUF, e.g. `LFM2.5-8B-A1B` **Q4_K_M** (~2.5–3 GB) or
-   `gemma-4-E4B-it` Q4_K_M.
-3. In the app settings (or `settings.json` in userData), set:
-   ```json
-   {
-     "cleanupEnabled": true,
-     "llmServerPath": "/path/to/llama-server",
-     "llmModelPath": "/path/to/LFM2.5-8B-A1B-Q4_K_M.gguf"
-   }
-   ```
-4. Restart the app. The sidecar starts on 127.0.0.1 and the transcript is
-   corrected before it's typed.
+1. The inference engine (`node-llama-cpp`) **ships with the app**, so there's no
+   `llama-server` binary to install.
+2. In the settings window, pick a **Cleaning pipeline** (default **LFM2.5-8B-A1B**)
+   and Save. The first time cleaning runs, the app **downloads the GGUF weights
+   once (~a few GB) and caches** them in the app's data dir
+   (`userData/models/`). The orb shows `downloading… %`, then it's ready forever.
+3. Default is **off** (for latency); turning it on triggers the one-time download.
+
+Weight sources are in `app/src/main/provision.js` (Hugging Face repos). MedGemma
+is gated — set `HF_TOKEN` in the environment for that one. Advanced users can
+point `llmModelPath` at their own GGUF to skip the download.
+
+> Why download-on-first-use instead of bundling weights in the installer? A 5 GB
+> installer is painful to ship/update; caching after one download gives the same
+> "just works" feel with a small installer. A fully-bundled offline build is
+> possible later for air-gapped/enterprise deployments.
 
 ## Safety (medical)
 

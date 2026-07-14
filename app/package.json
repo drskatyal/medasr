@@ -15,7 +15,8 @@
     "publish": "electron-builder --publish always"
   },
   "dependencies": {
-    "onnxruntime-node": "^1.20.1"
+    "onnxruntime-node": "^1.20.1",
+    "node-llama-cpp": "^3.7.0"
   },
   "devDependencies": {
     "electron": "^33.2.0",
@@ -29,7 +30,11 @@
     "extraResources": [
       { "from": "../models", "to": "models", "filter": ["*.onnx"] }
     ],
-    "asarUnpack": ["**/node_modules/onnxruntime-node/**"],
+    "asarUnpack": [
+      "**/node_modules/onnxruntime-node/**",
+      "**/node_modules/node-llama-cpp/**",
+      "**/node_modules/@node-llama-cpp/**"
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "target": ["dmg", "zip"],

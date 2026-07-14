@@ -32,7 +32,6 @@ async function init() {
 
   $('autoInject').checked = settings.autoInject !== false;
   $('hotkey').value = settings.hotkey || 'Alt+Q';
-  $('serverPath').value = settings.llmServerPath || '';
   $('modelPath').value = settings.llmModelPath || '';
 
   $('save').addEventListener('click', async () => {
@@ -43,7 +42,6 @@ async function init() {
       cleanupEnabled: cleanupModel !== 'off',
       autoInject: $('autoInject').checked,
       hotkey: $('hotkey').value.trim() || 'Alt+Q',
-      llmServerPath: $('serverPath').value.trim(),
       llmModelPath: $('modelPath').value.trim(),
     });
     const s = $('saved'); s.classList.add('show'); setTimeout(() => s.classList.remove('show'), 2500);

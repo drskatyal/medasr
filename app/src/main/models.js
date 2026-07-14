@@ -44,11 +44,11 @@ const DEFAULTS = {
   hotkey: 'Alt+Q',    // simple two-key toggle
   autoInject: true,   // type into focused app after transcribing
   playSounds: true,
-  // --- cleanup LLM (all OFF by default; opt-in once a model is installed) ---
+  // --- cleanup LLM (OFF by default for latency; when enabled, the weights
+  //     auto-download once and cache — no manual setup) ---
   cleanupEnabled: false,       // run the local cleanup LLM on the transcript
-  llmServerPath: '',           // path to a llama-server binary (see docs/MODELS.md)
-  llmModelPath: '',            // path to a cleanup GGUF (e.g. LFM2.5-8B-A1B Q4_K_M)
-  llmMmprojPath: '',           // optional projector (for Gemma 4 audio, later)
+  cleanupModel: 'lfm2.5-8b-a1b', // default model (auto-downloaded on first enable)
+  llmModelPath: '',            // optional explicit GGUF override; else auto-provisioned
   sttEngine: 'medasr',         // 'medasr' | 'gemma4-audio' (future) | ...
 };
 
