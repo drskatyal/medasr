@@ -32,7 +32,9 @@
   <div id="statusBox" style="background:rgba(128,128,128,.1); border-radius:10px; padding:14px; margin-bottom:18px; font-size:13px">
     <div style="font-weight:700; margin-bottom:8px">Models</div>
     <div class="mitem">
-      <div class="mrow"><span><b>Input (speech-to-text)</b><br><span id="stStt" class="muted">…</span></span></div>
+      <div class="mrow"><span><b>Input (speech-to-text)</b><br><span id="stStt" class="muted">…</span></span>
+        <button id="btnDlStt" style="display:none">Download</button></div>
+      <div class="pbar" id="pbStt"><i></i><em>0%</em></div>
     </div>
     <div class="mitem">
       <div class="mrow"><span><b>Cleaning</b><br><span id="stClean" class="muted">…</span></span>
@@ -161,6 +163,12 @@
   <details>
     <summary>Advanced</summary>
     <div class="row" style="margin-top:12px">
+      <label for="modelsDir">Models folder (where downloads are stored)</label>
+      <input type="text" id="modelsDir" placeholder="Default: app data folder" />
+      <div class="hint">Point this to a drive with free space (e.g. <code>D:\FlowRadModels</code>) if your
+        C: drive is full. Leave blank to use the default. <span id="modelsDirNow"></span></div>
+    </div>
+    <div class="row">
       <label for="modelPath">Cleanup model file (optional override)</label>
       <input type="text" id="modelPath" placeholder="Leave blank — auto-downloaded &amp; cached on first use" />
       <div class="hint">The cleaning model downloads automatically the first time you enable

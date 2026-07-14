@@ -39,6 +39,7 @@ let sttActive = 'none';        // engine actually running
 let sttNote = '';              // e.g. fallback reason
 let voskCmd = null;            // always-on command listener (Vosk)
 let cmdStatus = 'off';         // 'off'|'downloading …'|'loading'|'ready'|'error: …'
+let sttDlStatus = '';          // STT engine download progress ('', 'downloading N%', 'installed', 'error: …')
 
 function cleaningStatus() {
   if (!settings.cleanupEnabled) return 'off';
@@ -390,6 +391,10 @@ ipcMain.handle('get-status', () => ({
   realtime: !!settings.realtimeMode,
   vad: vadStatus,
   commands: settings.alwaysOnCommands ? cmdStatus : 'off',
+  sttInstallable: !!provision.STT_CATALOG[settings.sttEngine],
+  sttInstalled: provision.isSttInstalled(settings.sttEngine),
+  sttDl: sttDlStatus,
+  modelsDir: provision.modelsDir(),
 }));
 
 // "Set up / Download now" buttons in the settings window.
@@ -398,15 +403,29 @@ ipcMain.handle('setup', async (_e, what) => {
     if (what === 'cleanup') { settings.cleanupEnabled = true; models.saveSettings(settings); await ensureCleanupLlm(); }
     else if (what === 'vad') { await ensureRealtime(); }
     else if (what === 'commands') { settings.alwaysOnCommands = true; models.saveSettings(settings); await ensureCommandListener(); }
+    else if (what === 'stt') {
+      const id = settings.sttEngine;
+      if (!provision.STT_CATALOG[id]) return { ok: false, error: 'no download for this engine' };
+      if (sttDlStatus.startsWith('downloading')) return { ok: true };  // already running
+      sttDlStatus = 'downloading 0%';
+      await provision.ensureSttModel(id, { onProgress: ({ pct }) => { sttDlStatus = `downloading ${pct}%`; } });
+      sttDlStatus = 'installed';
+      await loadAsr();   // switch to the freshly-downloaded engine
+    }
     return { ok: true };
-  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+  } catch (e) {
+    if (sttDlStatus.startsWith('downloading')) sttDlStatus = 'error: ' + String(e && e.message || e).split('\n')[0];
+    return { ok: false, error: String(e && e.message || e) };
+  }
 });
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_e, s) => {
   const wasCleanup = settings.cleanupEnabled;
   const prevStt = settings.sttEngine;
+  const prevDir = settings.modelsDirOverride;
   settings = { ...settings, ...s };
   models.saveSettings(settings);
+  if (settings.modelsDirOverride !== prevDir) provision.setModelsDir(settings.modelsDirOverride);
   registerHotkey();
   setFocusLock(settings.lockFocus);
   refreshTrayMenu();
@@ -508,6 +527,7 @@ async function boot() {
   buildTray();
   registerHotkey();
   setFocusLock(settings.lockFocus);
+  provision.setModelsDir(settings.modelsDirOverride);   // honor a custom models location
 
   await loadAsr();
   // Cleanup LLM: auto-download the selected model's weights on first use and

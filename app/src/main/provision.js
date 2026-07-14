@@ -79,9 +79,16 @@ const CATALOG = {
   },
 };
 
+// Where models are stored. Defaults to the app's userData dir, but the user can
+// override it (e.g. to a drive with more space) via Settings → Advanced. If the
+// override isn't writable we fall back to the default rather than crashing.
+let overrideDir = null;
+function setModelsDir(p) { overrideDir = (p && String(p).trim()) || null; }
+function defaultModelsDir() { return path.join(app.getPath('userData'), 'models'); }
 function modelsDir() {
-  const d = path.join(app.getPath('userData'), 'models');
-  fs.mkdirSync(d, { recursive: true });
+  let d = overrideDir || defaultModelsDir();
+  try { fs.mkdirSync(d, { recursive: true }); }
+  catch (e) { d = defaultModelsDir(); fs.mkdirSync(d, { recursive: true }); }
   return d;
 }
 
@@ -157,6 +164,57 @@ async function ensureVoskModel({ onProgress } = {}) {
   return voskModelDir();
 }
 
+// ---- STT engine models (sherpa-onnx transducer: Parakeet) ----
+// Real, one-click downloads. Archive is a .tar.bz2 from the sherpa-onnx model
+// zoo; we extract it (system `tar`, present on Win10+/mac/linux) and copy the
+// int8 files into the per-engine dir under the names ParakeetAsr expects.
+const STT_CATALOG = {
+  'parakeet-medical': {
+    url: 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2',
+    dir: 'sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8',
+    map: { 'encoder.int8.onnx': 'encoder.onnx', 'decoder.int8.onnx': 'decoder.onnx', 'joiner.int8.onnx': 'joiner.onnx', 'tokens.txt': 'tokens.txt' },
+    approxBytes: 6.5e8,
+  },
+};
+// Omi Med STT isn't published in sherpa-onnx format, so it uses the same fast
+// Parakeet-TDT base for now (swap when an Omi sherpa export exists).
+STT_CATALOG['omi-med-stt'] = STT_CATALOG['parakeet-medical'];
+
+const STT_FILES = ['encoder.onnx', 'decoder.onnx', 'joiner.onnx', 'tokens.txt'];
+
+function isSttInstalled(engineId) {
+  const dir = path.join(modelsDir(), engineId);
+  return STT_FILES.every((f) => fs.existsSync(path.join(dir, f)));
+}
+
+function extractTarBz2(archive, destDir) {
+  const { execFileSync } = require('child_process');
+  execFileSync('tar', ['-xf', archive, '-C', destDir], { windowsHide: true });
+}
+
+// Download + install a transducer STT engine's model files. onProgress -> pct.
+async function ensureSttModel(engineId, { onProgress } = {}) {
+  const entry = STT_CATALOG[engineId];
+  if (!entry) throw new Error(`no download available for '${engineId}'`);
+  const dir = sttModelDir(engineId);
+  if (isSttInstalled(engineId)) return dir;
+  const md = modelsDir();
+  const archive = path.join(md, engineId.replace(/[^\w.-]/g, '_') + '.tar.bz2');
+  console.log(`[provision] stt ${engineId}: downloading ${entry.url}`);
+  await downloadFile(entry.url, archive, { onProgress });
+  console.log(`[provision] stt ${engineId}: extracting`);
+  extractTarBz2(archive, md);
+  const src = path.join(md, entry.dir);
+  for (const [from, to] of Object.entries(entry.map)) {
+    const s = path.join(src, from);
+    if (fs.existsSync(s)) fs.copyFileSync(s, path.join(dir, to));
+  }
+  try { fs.rmSync(src, { recursive: true, force: true }); } catch (e) {}
+  try { fs.unlinkSync(archive); } catch (e) {}
+  if (!isSttInstalled(engineId)) throw new Error('STT model files missing after extract');
+  return dir;
+}
+
 function localPathFor(id) {
   const entry = CATALOG[id];
   if (!entry) return null;
@@ -189,4 +247,5 @@ async function ensureModel(id, { hfToken, onProgress } = {}) {
 module.exports = {
   CATALOG, modelsDir, sttModelDir, ensureVadModel, localPathFor, isInstalled, ensureModel,
   ensureVoskModel, voskModelDir, isVoskInstalled,
+  setModelsDir, defaultModelsDir, STT_CATALOG, ensureSttModel, isSttInstalled,
 };

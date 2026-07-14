@@ -41,6 +41,7 @@ async function init() {
   $('pacsCommand').value = settings.pacsCommand || '';
   $('hotkey').value = settings.hotkey || 'Alt+Q';
   $('modelPath').value = settings.llmModelPath || '';
+  $('modelsDir').value = settings.modelsDirOverride || '';
 
   // Live status panel + setup buttons (so setup/errors are visible, no pop-ups).
   function btnState(btn, state, downloadingRe, readyRe) {
@@ -74,6 +75,12 @@ async function init() {
       ? (s.sttActive === s.sttSelected ? `${s.sttActive} — running`
          : `${s.sttActive} running (you selected ${s.sttSelected}: ${s.sttNote || 'not available'})`)
       : (s.sttNote || 'not loaded');
+    // STT download button: shown when the selected engine can be downloaded and isn't installed yet.
+    const sttNeedsDl = s.sttInstallable && !s.sttInstalled;
+    $('btnDlStt').style.display = sttNeedsDl || /downloading/i.test(s.sttDl || '') ? 'inline-block' : 'none';
+    btnState($('btnDlStt'), s.sttInstalled ? 'installed' : (s.sttDl || 'download'), /download/i, /installed/i);
+    setBar('pbStt', s.sttDl, sttNeedsDl || /downloading/i.test(s.sttDl || ''));
+    if ($('modelsDirNow') && s.modelsDir) $('modelsDirNow').textContent = 'Currently: ' + s.modelsDir;
     // Cleaning
     const cleanSel = $('cleanup').value;
     $('stClean').textContent = cleanSel === 'off' ? 'off' : `${cleanSel} — ${s.cleaning}`;
@@ -96,6 +103,11 @@ async function init() {
   $('btnDlClean').addEventListener('click', async () => { $('btnDlClean').textContent = 'Starting…'; $('btnDlClean').disabled = true; await window.medasr.setup('cleanup'); });
   $('btnDlVad').addEventListener('click', async () => { $('btnDlVad').textContent = 'Starting…'; $('btnDlVad').disabled = true; await window.medasr.setup('vad'); });
   $('btnDlCmd').addEventListener('click', async () => { $('btnDlCmd').textContent = 'Starting…'; $('btnDlCmd').disabled = true; await window.medasr.setup('commands'); });
+  $('btnDlStt').addEventListener('click', async () => {
+    $('btnDlStt').textContent = 'Starting…'; $('btnDlStt').disabled = true;
+    const r = await window.medasr.setup('stt');
+    if (r && r.ok === false) { $('sttHint').textContent = '⚠ ' + (r.error || 'download failed'); }
+  });
   $('alwaysOnCommands').addEventListener('change', refreshStatus);
   refreshStatus();
   setInterval(refreshStatus, 1200);
@@ -133,6 +145,7 @@ async function init() {
       pacsCommand: $('pacsCommand').value.trim(),
       hotkey: $('hotkey').value.trim() || 'Alt+Q',
       llmModelPath: $('modelPath').value.trim(),
+      modelsDirOverride: $('modelsDir').value.trim(),
       realtimeMode: $('realtimeMode').checked,
       realtimeReplace: $('realtimeReplace').checked,
       vadSilenceMs: Number($('vadSilenceMs').value),

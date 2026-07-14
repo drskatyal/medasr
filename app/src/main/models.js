@@ -60,6 +60,7 @@ const DEFAULTS = {
   cleanupEnabled: false,       // run the local cleanup LLM on the transcript
   cleanupModel: 'lfm2.5-8b-a1b', // default model (auto-downloaded on first enable)
   llmModelPath: '',            // optional explicit GGUF override; else auto-provisioned
+  modelsDirOverride: '',       // custom folder to store downloaded models (e.g. a drive with space)
   sttEngine: 'medasr',         // 'medasr' | 'gemma4-audio' (future) | ...
   // --- real-time (VAD, Silero) dictation: hands-free, auto-segment on pauses ---
   realtimeMode: false,         // press hotkey once, speak; pauses end each utterance
