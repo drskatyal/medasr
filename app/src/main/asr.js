@@ -64,7 +64,9 @@ class Asr {
     // prepended/appended, so the kept region aligns to the body with no overlap
     // (this is what prevents boundary word-doubling).
     const discard = Math.round(CHUNK_OVERLAP_S * ENC_FPS);
-    const stitched = [];
+    // Collect kept logit ranges as typed-array copies (not millions of boxed
+    // JS numbers) so long recordings don't blow up memory.
+    const parts = [];
     let V = this.vocab.id_to_piece.length;
     for (let start = 0; start < pcm.length; start += body) {
       const from = Math.max(0, start - ctx);
@@ -75,12 +77,15 @@ class Asr {
       V = v;
       const dLeft = from === 0 ? 0 : discard;
       const dRight = to >= pcm.length ? 0 : discard;
-      for (let t = dLeft; t < T - dRight; t++) {
-        for (let k = 0; k < V; k++) stitched.push(logits[t * V + k]);
-      }
+      const a = dLeft * V, b = Math.max(dLeft, T - dRight) * V;
+      if (b > a) parts.push(logits.slice(a, b));   // copy this chunk's kept frames
     }
+    if (!parts.length) return '';
+    let total = 0; for (const p of parts) total += p.length;
+    const stitched = new Float32Array(total);
+    let o = 0; for (const p of parts) { stitched.set(p, o); o += p.length; }
     const T = stitched.length / V;
-    return greedyCTC(Float32Array.from(stitched), T, V, this.vocab);
+    return greedyCTC(stitched, T, V, this.vocab);
   }
 }
 
