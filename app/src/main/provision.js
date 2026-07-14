@@ -182,36 +182,53 @@ STT_CATALOG['omi-med-stt'] = STT_CATALOG['parakeet-medical'];
 
 const STT_FILES = ['encoder.onnx', 'decoder.onnx', 'joiner.onnx', 'tokens.txt'];
 
+// A file counts as installed only if it exists AND is non-empty (a killed
+// extract / AV quarantine can leave zero-byte files that would fail at load).
 function isSttInstalled(engineId) {
   const dir = path.join(modelsDir(), engineId);
-  return STT_FILES.every((f) => fs.existsSync(path.join(dir, f)));
+  return STT_FILES.every((f) => { try { return fs.statSync(path.join(dir, f)).size > 0; } catch (e) { return false; } });
 }
 
+// Async so a large (~650 MB) extract doesn't block the Electron main thread.
 function extractTarBz2(archive, destDir) {
-  const { execFileSync } = require('child_process');
-  execFileSync('tar', ['-xf', archive, '-C', destDir], { windowsHide: true });
+  return new Promise((resolve, reject) => {
+    const { execFile } = require('child_process');
+    execFile('tar', ['-xf', archive, '-C', destDir], { windowsHide: true, maxBuffer: 1 << 24 },
+      (err) => (err ? reject(new Error('extract failed (need `tar`, built into Windows 10+/macOS/Linux): ' + err.message)) : resolve()));
+  });
 }
 
-// Download + install a transducer STT engine's model files. onProgress -> pct.
-async function ensureSttModel(engineId, { onProgress } = {}) {
+// Single-flight: share one in-progress install per engine so concurrent Download
+// clicks (and aliased catalog entries) don't race on the same files.
+const _sttInflight = {};
+function ensureSttModel(engineId, { onProgress } = {}) {
+  if (_sttInflight[engineId]) return _sttInflight[engineId];
+  const p = _doEnsureSttModel(engineId, { onProgress }).finally(() => { delete _sttInflight[engineId]; });
+  _sttInflight[engineId] = p;
+  return p;
+}
+
+async function _doEnsureSttModel(engineId, { onProgress } = {}) {
   const entry = STT_CATALOG[engineId];
   if (!entry) throw new Error(`no download available for '${engineId}'`);
-  const dir = sttModelDir(engineId);
+  const dir = sttModelDir(engineId);   // sttModelDir() mkdirs this
   if (isSttInstalled(engineId)) return dir;
   const md = modelsDir();
   const archive = path.join(md, engineId.replace(/[^\w.-]/g, '_') + '.tar.bz2');
   console.log(`[provision] stt ${engineId}: downloading ${entry.url}`);
   await downloadFile(entry.url, archive, { onProgress });
   console.log(`[provision] stt ${engineId}: extracting`);
-  extractTarBz2(archive, md);
+  await extractTarBz2(archive, md);
   const src = path.join(md, entry.dir);
+  if (!fs.existsSync(src)) throw new Error(`archive did not contain '${entry.dir}'`);
   for (const [from, to] of Object.entries(entry.map)) {
     const s = path.join(src, from);
-    if (fs.existsSync(s)) fs.copyFileSync(s, path.join(dir, to));
+    if (!fs.existsSync(s)) throw new Error(`expected '${from}' missing in archive`);   // fail fast with the name
+    fs.copyFileSync(s, path.join(dir, to));
   }
   try { fs.rmSync(src, { recursive: true, force: true }); } catch (e) {}
   try { fs.unlinkSync(archive); } catch (e) {}
-  if (!isSttInstalled(engineId)) throw new Error('STT model files missing after extract');
+  if (!isSttInstalled(engineId)) throw new Error('STT model files missing/empty after extract');
   return dir;
 }
 

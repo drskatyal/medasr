@@ -224,6 +224,7 @@ async function startRecording() {
   if (settings.realtimeMode) {
     try {
       await ensureRealtime();
+      if (!rt) throw new Error('real-time engine still loading — press again in a moment');
       rt.start();
       pill.webContents.send('record', { action: 'start', mode: 'realtime' });
       return;
@@ -409,8 +410,8 @@ ipcMain.handle('setup', async (_e, what) => {
       if (sttDlStatus.startsWith('downloading')) return { ok: true };  // already running
       sttDlStatus = 'downloading 0%';
       await provision.ensureSttModel(id, { onProgress: ({ pct }) => { sttDlStatus = `downloading ${pct}%`; } });
-      sttDlStatus = 'installed';
-      await loadAsr();   // switch to the freshly-downloaded engine
+      await loadAsr();               // switch to the freshly-downloaded engine
+      sttDlStatus = 'installed';     // only after both extract AND load succeed
     }
     return { ok: true };
   } catch (e) {
