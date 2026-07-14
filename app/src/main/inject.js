@@ -82,13 +82,16 @@ async function injectText(text) {
 // suspiciously shorter), we DO NOT delete — we put the corrected text on the
 // clipboard and return false so the caller can surface it instead.
 async function selectLeft(n) {
+  if (n <= 0) return;
   if (process.platform === 'darwin') {
     await run('osascript', ['-e',
       `tell application "System Events" to repeat ${n} times` +
       ` key code 123 using shift down` + ` end repeat`]);
   } else if (process.platform === 'win32') {
+    // Select all n characters in ONE keystroke: "+{LEFT n}" = Shift + (Left ×n).
+    // (The old per-character loop was the visible char-by-char selection.)
     const script = 'Add-Type -AssemblyName System.Windows.Forms; ' +
-      `for($i=0;$i -lt ${n};$i++){[System.Windows.Forms.SendKeys]::SendWait("+{LEFT}")}`;
+      `[System.Windows.Forms.SendKeys]::SendWait("+{LEFT ${n}}")`;
     await run('powershell', ['-NoProfile', '-Command', script]);
   } else {
     await run('xdotool', ['key', '--repeat', String(n), 'shift+Left']);

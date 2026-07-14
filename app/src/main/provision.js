@@ -65,6 +65,18 @@ const CATALOG = {
     approxBytes: 0.5e9,
     label: 'Qwen3-0.6B (Q4_K_M)',
   },
+  'lfm2-1.2b': {
+    repo: 'LiquidAI/LFM2-1.2B-GGUF',
+    file: 'LFM2-1.2B-Q4_K_M.gguf',
+    approxBytes: 0.8e9,
+    label: 'LFM2-1.2B (Q4_K_M) — fast + strong',
+  },
+  'qwen3-1.7b': {
+    repo: 'Qwen/Qwen3-1.7B-GGUF',
+    file: 'Qwen3-1.7B-Q4_K_M.gguf',
+    approxBytes: 1.1e9,
+    label: 'Qwen3-1.7B (Q4_K_M) — fast + accurate',
+  },
   'omi-sum-3b': {
     repo: 'bartowski/sum-small-GGUF',   // Omi-Sum (sum-small), Phi-3-mini fine-tune, MIT
     file: 'sum-small-Q4_K_M.gguf',

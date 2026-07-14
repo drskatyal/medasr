@@ -71,7 +71,8 @@ async function init() {
     const e = engines.stt.find((x) => x.id === $('stt').value);
     $('sttHint').textContent = e ? (e.implemented ? e.note : '⚠ ' + e.note + '  Falls back to MedASR until installed.') : '';
   };
-  $('stt').addEventListener('change', sttHint);
+  $('stt').addEventListener('change', () => { sttHint(); refreshStatus(); });
+  $('cleanup').addEventListener('change', () => { refreshStatus(); });
   sttHint();
 
   $('autoInject').checked = settings.autoInject !== false;

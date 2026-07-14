@@ -30,7 +30,11 @@ const CLEANUP_MODELS = [
   { id: 'omi-sum-3b', label: 'Omi-Sum (sum-small) — clinical SOAP (MIT)', gguf: 'sum-small-Q4_K_M.gguf',
     note: 'Phi-3-mini fine-tuned for medical dialogue → SOAP notes. MIT license.' },
   { id: 'gemma4-e4b', label: 'Gemma 4 E4B — Apache 2.0', gguf: 'gemma-4-E4B-it-Q4_K_M.gguf' },
-  { id: 'qwen3-0.6b', label: 'Qwen3-0.6B — ultra-light', gguf: 'Qwen3-0.6B-Q4_K_M.gguf' },
+  { id: 'qwen3-0.6b', label: 'Qwen3-0.6B — ultra-light (fastest, basic)', gguf: 'Qwen3-0.6B-Q4_K_M.gguf' },
+  { id: 'lfm2-1.2b', label: 'LFM2-1.2B — fast + strong (recommended balance)', gguf: 'LFM2-1.2B-Q4_K_M.gguf',
+    note: 'Liquid edge model — ~0.8 GB, much faster than the 8B, far better than 0.6B.' },
+  { id: 'qwen3-1.7b', label: 'Qwen3-1.7B — fast + accurate', gguf: 'Qwen3-1.7B-Q4_K_M.gguf',
+    note: '~1.1 GB. Great speed/quality trade-off for cleanup.' },
   { id: 'medgemma-4b', label: 'MedGemma 1.5 4B — medical (gated)', gguf: 'medgemma-1.5-4b-it-Q4_K_M.gguf' },
 ];
 

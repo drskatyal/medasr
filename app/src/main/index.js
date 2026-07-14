@@ -388,20 +388,22 @@ ipcMain.handle('get-commands', () => actions.DEFAULT_COMMANDS.map((c) => ({
 })));
 
 // Live status for the settings window (so setup/errors are visible without pop-ups).
-ipcMain.handle('get-status', () => ({
-  sttSelected: settings.sttEngine,
-  sttActive,
-  sttNote,
-  modelReady,
-  cleaning: cleaningStatus(),
-  realtime: !!settings.realtimeMode,
-  vad: vadStatus,
-  commands: settings.alwaysOnCommands ? cmdStatus : 'off',
-  sttInstallable: !!provision.STT_CATALOG[settings.sttEngine],
-  sttInstalled: provision.isSttInstalled(settings.sttEngine),
-  sttDl: sttDlStatus,
-  modelsDir: provision.modelsDir(),
-}));
+ipcMain.handle('get-status', () => {
+  // Bulletproof: never let one failing field reject the whole status (that would
+  // silently freeze the settings panel).
+  let sttInstallable = false, sttInstalled = false, modelsDir = '';
+  try { sttInstallable = !!provision.STT_CATALOG[settings.sttEngine]; } catch (e) {}
+  try { sttInstalled = provision.isSttInstalled(settings.sttEngine); } catch (e) {}
+  try { modelsDir = provision.modelsDir(); } catch (e) {}
+  let cleaning = 'off';
+  try { cleaning = cleaningStatus(); } catch (e) {}
+  return {
+    sttSelected: settings.sttEngine, sttActive, sttNote, modelReady,
+    cleaning, realtime: !!settings.realtimeMode, vad: vadStatus,
+    commands: settings.alwaysOnCommands ? cmdStatus : 'off',
+    sttInstallable, sttInstalled, sttDl: sttDlStatus, modelsDir,
+  };
+});
 
 // "Set up / Download now" buttons in the settings window.
 ipcMain.handle('setup', async (_e, what) => {

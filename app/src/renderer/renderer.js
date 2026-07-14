@@ -18,7 +18,13 @@ window.addEventListener('mousemove', (e) => {
   }
 });
 window.addEventListener('mouseup', () => {
-  if (dragFrom && dragDist < 5) { try { window.medasr.toggle(); } catch (e) {} }
+  if (dragFrom && dragDist < 5) {
+    // Flip the orb colour immediately (don't wait for the main-process round
+    // trip) so the click feels instant; main confirms/corrects the state next.
+    const goingToRec = !document.body.classList.contains('rec');
+    setState(goingToRec ? 'recording' : 'idle');
+    try { window.medasr.toggle(); } catch (e) {}
+  }
   dragFrom = null;
 });
 

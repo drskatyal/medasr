@@ -135,9 +135,12 @@ class RealtimeSession {
   _enqueueUtterance(samples, ep) {
     this.queue = this.queue.then(async () => {
       if (ep !== this.epoch) return;
-      const text = (await this.d.transcribe(samples) || '').trim();
+      const text = (await this.d.transcribe(samples) || '').replace(/^[ \t]+|[ \t]+$/g, '');
       if (ep !== this.epoch || !text) return;
-      const delta = (this.typedText ? ' ' : '') + text;
+      // Join with a space between utterances, but not around a paragraph/line
+      // break (so "…knee." + "new paragraph" + "Full thickness…" reads cleanly).
+      const needsSpace = this.typedText && !/\n$/.test(this.typedText) && !/^\n/.test(text);
+      const delta = (needsSpace ? ' ' : '') + text;
       this.typedText += delta;
       this.rawText += delta;
       this.d.hooks.log('utterance: ' + JSON.stringify(text));
