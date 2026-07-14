@@ -7,7 +7,8 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const { app } = require('electron');
-const { downloadFile } = require('./download');
+const { downloadFileWithRetry } = require('./download');
+const downloadFile = downloadFileWithRetry;   // all model downloads auto-resume on transient failures
 
 function httpsGetJson(url, headers = {}) {
   return new Promise((resolve, reject) => {

@@ -83,4 +83,27 @@ function downloadFile(url, dest, { headers = {}, onProgress, redirectsLeft = 5 }
   });
 }
 
-module.exports = { downloadFile };
+// Retry wrapper for flaky networks: on a transient failure (60s stall, reset,
+// DNS blip) re-run downloadFile — which RESUMES from the .part file — with
+// exponential backoff. Big model files over a shaky link then grind to
+// completion instead of dying at the first hiccup. Hard HTTP client errors
+// (4xx) are not retried (they won't fix themselves).
+async function downloadFileWithRetry(url, dest, opts = {}, retries = 8) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try { return await downloadFile(url, dest, opts); }
+    catch (e) {
+      lastErr = e;
+      const msg = String((e && e.message) || e);
+      if (/HTTP 4\d\d/.test(msg)) throw e;
+      if (attempt === retries) break;
+      const waitMs = Math.min(30000, 2000 * Math.pow(2, attempt));
+      console.log(`[download] transient error (${msg}); resuming — retry ${attempt + 1}/${retries} in ${Math.round(waitMs / 1000)}s`);
+      if (typeof opts.onRetry === 'function') opts.onRetry(attempt + 1, retries);
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
+  throw lastErr;
+}
+
+module.exports = { downloadFile, downloadFileWithRetry };
