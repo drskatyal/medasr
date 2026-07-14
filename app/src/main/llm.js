@@ -11,10 +11,11 @@ function log(...a) { console.log('[llm]', ...a); }
 class LlmEngine {
   constructor({ modelPath, ctxSize, gpu } = {}) {
     this.modelPath = modelPath;
-    this.ctxSize = ctxSize || 8192;   // headroom for a long report (input + edited output)
+    this.ctxSize = ctxSize || 4096;   // enough for a dictation report; smaller = faster KV alloc
     this.gpu = gpu;                   // 'auto' (default) | 'vulkan' | 'cuda' | 'metal' | 'off'
     this._llama = null;
     this._model = null;
+    this._context = null;             // persistent context (KV cache) — reused across calls
     this._LlamaChatSession = null;
     this.backend = 'cpu';             // resolved GPU backend actually in use (or 'cpu')
     this.gpuLayers = 0;
@@ -43,31 +44,45 @@ class LlmEngine {
     });
     try { this.gpuLayers = this._model.gpuLayers ?? 0; } catch (e) {}
     log('model loaded on', this.backend, '(gpuLayers:', this.gpuLayers, ')');
+    // Create the context (KV cache) ONCE and reuse it — allocating it per call
+    // was a big chunk of the correction latency. Then warm up so the FIRST real
+    // cleanup isn't a cold start (kernels compiled, weights paged to the GPU).
+    this._context = await this._model.createContext({ contextSize: this.ctxSize });
+    try {
+      const t0 = Date.now();
+      const seq = this._context.getSequence();
+      const warm = new this._LlamaChatSession({ contextSequence: seq });
+      await warm.prompt('Ready.', { maxTokens: 1, temperature: 0 });
+      try { seq.dispose(); } catch (e) {}
+      log('cleanup engine warmed up in', Date.now() - t0, 'ms');
+    } catch (e) { log('warm-up skipped:', e && e.message || e); }
     return this;
   }
 
   info() { return { backend: this.backend, gpuLayers: this.gpuLayers }; }
 
-  // messages: [{role:'system'|'user', content}]. Stateless: fresh context per call.
+  // messages: [{role:'system'|'user', content}]. Stateless per call, but reuses
+  // the persistent context — only a lightweight sequence is created/freed.
   async chat(messages, { temperature = 0, maxTokens = 1024 } = {}) {
-    if (!this._model) throw new Error('LLM not loaded');
+    if (!this._context) throw new Error('LLM not loaded');
     const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n');
     const user = messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
-    const context = await this._model.createContext({ contextSize: this.ctxSize });
+    const seq = this._context.getSequence();
     try {
       const session = new this._LlamaChatSession({
-        contextSequence: context.getSequence(),
+        contextSequence: seq,
         systemPrompt: system || undefined,
       });
       return await session.prompt(user, { temperature, maxTokens });
     } finally {
-      try { await context.dispose(); } catch (e) { log('ctx dispose err:', e && e.message || e); }
+      try { seq.dispose(); } catch (e) {}   // free the slot; keep the context
     }
   }
 
   async stop() {
+    try { if (this._context) await this._context.dispose(); } catch (e) {}
     try { if (this._model) await this._model.dispose(); } catch (e) {}
-    this._model = null;
+    this._context = null; this._model = null;
   }
 }
 
