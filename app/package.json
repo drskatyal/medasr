@@ -8,6 +8,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "start": "electron .",
+    "prepare:vosk": "node scripts/fetch-vosk.js",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
@@ -34,7 +35,7 @@
     "icon": "build/icon.png",
     "files": ["src/**/*", "assets/**/*", "!**/*.md"],
     "extraResources": [
-      { "from": "../models", "to": "models", "filter": ["*.onnx"] }
+      { "from": "../models", "to": "models", "filter": ["*.onnx", "silero_vad.onnx", "vosk-model-small-en-us-0.15/**"] }
     ],
     "asarUnpack": [
       "**/node_modules/onnxruntime-node/**",

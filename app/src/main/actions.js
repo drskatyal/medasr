@@ -59,6 +59,22 @@ function matchCommand(text, commands = DEFAULT_COMMANDS) {
   return null;
 }
 
+// In hands-free batch (push-to-talk) mode the mic keeps recording until the
+// listener hears "stop dictation", so that phrase lands at the tail of the
+// captured audio and MedASR transcribes it into the report. Strip a trailing
+// stop/finish trigger before typing. (Real-time mode doesn't need this: each
+// utterance is segmented, so "stop dictation" is its own utterance and is
+// swallowed as a command.)
+function stripTrailingStop(text) {
+  if (!text) return text;
+  const stop = DEFAULT_COMMANDS.find((c) => c.action === 'stopDictation');
+  for (const t of stop.triggers) {
+    const re = new RegExp('\\b' + t.replace(/\s+/g, '\\s+') + '\\s*[.?!]*$', 'i');
+    if (re.test(text)) return text.replace(re, '').replace(/[\s,]+$/, '').trim();
+  }
+  return text;
+}
+
 function matchMacro(text, macros) {
   const n = norm(text);
   const m = macros.find((x) => x.trigger === n || n === 'insert ' + x.trigger || n === 'template ' + x.trigger);
@@ -98,4 +114,5 @@ async function executeCommand(cmd, { pacsCommand, hooks } = {}) {
 
 module.exports = {
   DEFAULT_COMMANDS, DEFAULT_MACROS, parseMacros, matchCommand, matchMacro, executeCommand, norm,
+  stripTrailingStop,
 };

@@ -108,14 +108,25 @@ async function ensureVadModel({ onProgress } = {}) {
 const VOSK_ZIP_URL = 'https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip';
 const VOSK_DIR_NAME = 'vosk-model-small-en-us-0.15';
 
+function isVoskDir(d) {
+  return !!d && (fs.existsSync(path.join(d, 'conf', 'model.conf')) || fs.existsSync(path.join(d, 'am', 'final.mdl')));
+}
+
+// A copy bundled with the app (electron-builder extraResources) — lets us ship
+// the model in the installer so there's no first-run download.
+function bundledVoskDir() {
+  return process.resourcesPath ? path.join(process.resourcesPath, 'models', VOSK_DIR_NAME) : null;
+}
+
 function voskModelDir() {
-  // The extracted model dir contains am/, conf/, graph/, etc.
+  // Prefer the bundled copy; else the user-data dir (downloaded on first use).
+  const b = bundledVoskDir();
+  if (isVoskDir(b)) return b;
   return path.join(modelsDir(), VOSK_DIR_NAME);
 }
 
 function isVoskInstalled() {
-  const d = voskModelDir();
-  return fs.existsSync(path.join(d, 'conf', 'model.conf')) || fs.existsSync(path.join(d, 'am', 'final.mdl'));
+  return isVoskDir(bundledVoskDir()) || isVoskDir(path.join(modelsDir(), VOSK_DIR_NAME));
 }
 
 function extractZip(zipPath, destDir) {

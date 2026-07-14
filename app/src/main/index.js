@@ -290,6 +290,10 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
     const ms = Date.now() - t0;
     log('transcript:', JSON.stringify(text), `(${ms}ms)`);
 
+    // Hands-free batch: a spoken "stop dictation" is captured at the tail of the
+    // clip; strip it so it isn't typed into the report.
+    if (settings.alwaysOnCommands) text = actions.stripTrailingStop(text);
+
     // Voice actions: run a command (open app / show desktop / stop) or expand a
     // macro. A command is swallowed; a macro is typed verbatim (skip cleanup).
     const act = await runVoiceActions(text);

@@ -76,10 +76,20 @@ listen for commands"** (`alwaysOnCommands`).
   "start dictation" instant). It's a small model with low CPU cost. Turn the
   setting off to disable background listening entirely — then commands only work
   during an active dictation session, and you start with the hotkey/orb.
-- The model auto-downloads on first enable (a **Download** button in the Models
-  status panel shows progress). Requires the optional `vosk` native module; if
-  it isn't available the app runs exactly as before, just without hands-free
-  start.
+- **Works in every dictation mode**, independent of VAD/real-time. In **batch
+  (push-to-talk)** mode you can go fully hands-free: say "start dictation",
+  speak your report, say "stop dictation" — MedASR transcribes the clip. (The
+  trailing "stop dictation" is stripped so it doesn't land in the report.)
+  Vosk is *only* the command listener here; MedASR still does the transcription,
+  because Vosk's general model isn't accurate enough for medical text.
+- **Shipping the model:** by default it auto-downloads on first enable (a
+  **Download** button in the Models status panel shows progress) and is cached.
+  To ship it *inside* the installer instead (no first-run download), run
+  `npm run prepare:vosk` before `npm run dist` — that fetches the model into
+  `../models/` where electron-builder bundles it, and the app prefers the
+  bundled copy over downloading.
+- Requires the optional `vosk` native module; if it isn't available the app runs
+  exactly as before, just without hands-free start.
 
 ## Ordering
 
