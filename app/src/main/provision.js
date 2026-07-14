@@ -5,8 +5,37 @@
 
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 const { app } = require('electron');
 const { downloadFile } = require('./download');
+
+function httpsGetJson(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'FlowRadVR', ...headers } }, (r) => {
+      if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location) {
+        r.resume(); return resolve(httpsGetJson(r.headers.location, headers));
+      }
+      let d = ''; r.on('data', (c) => (d += c));
+      r.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(e); } });
+    }).on('error', reject);
+  });
+}
+
+// Resolve the actual GGUF filename in a repo (self-correcting if our guessed
+// filename is wrong): prefer the exact name, then a Q4_K_M, then any Q4, then
+// any gguf. Falls back to the guess if the API can't be reached.
+async function resolveGgufFile(repo, preferred, hfToken) {
+  try {
+    const headers = hfToken ? { Authorization: `Bearer ${hfToken}` } : {};
+    const info = await httpsGetJson(`https://huggingface.co/api/models/${repo}`, headers);
+    const ggufs = (info.siblings || []).map((s) => s.rfilename).filter((f) => /\.gguf$/i.test(f));
+    if (!ggufs.length) return preferred;
+    return ggufs.find((f) => f === preferred)
+      || ggufs.find((f) => /q4_k_m/i.test(f))
+      || ggufs.find((f) => /q4/i.test(f))
+      || ggufs[0];
+  } catch (e) { return preferred; }
+}
 
 // GGUF catalog. Built from the HF repo + filename -> a `resolve` URL that the
 // downloader follows to the CDN. Sizes are approximate (Q4_K_M).
@@ -86,7 +115,9 @@ async function ensureModel(id, { hfToken, onProgress } = {}) {
   const dest = localPathFor(id);
   if (isInstalled(id)) return dest;
 
-  const url = `https://huggingface.co/${entry.repo}/resolve/main/${entry.file}`;
+  // Self-correct the filename against the repo's real file list.
+  const file = await resolveGgufFile(entry.repo, entry.file, hfToken);
+  const url = `https://huggingface.co/${entry.repo}/resolve/main/${encodeURIComponent(file)}`;
   const headers = {};
   if (entry.gated && hfToken) headers.Authorization = `Bearer ${hfToken}`;
   await downloadFile(url, dest, { headers, onProgress });

@@ -401,6 +401,7 @@ async function loadAsr() {
   sttActive = 'none'; sttNote = '';
   const engId = settings.sttEngine || 'medasr';
   const eng = engines.sttEngine(engId);
+  if (eng && !eng.implemented) sttNote = 'not available yet — using MedASR';  // honest default
 
   if (eng && eng.runtime === 'parakeet-tdt') {
     const dir = provision.sttModelDir(engId);
