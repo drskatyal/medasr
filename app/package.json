@@ -15,7 +15,9 @@
     "publish": "electron-builder --publish always"
   },
   "dependencies": {
-    "onnxruntime-node": "^1.20.1",
+    "onnxruntime-node": "^1.20.1"
+  },
+  "optionalDependencies": {
     "node-llama-cpp": "^3.7.0",
     "sherpa-onnx-node": "^1.10.39"
   },
