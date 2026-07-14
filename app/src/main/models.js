@@ -46,6 +46,7 @@ const DEFAULTS = {
   playSounds: true,
   notifications: false,  // OS pop-up notifications — off by default (quiet app)
   lockFocus: true,       // remember the target field at dictation start; type back into it
+  voiceCommands: true,   // spoken punctuation/formatting ("period", "new paragraph", …)
   // --- cleanup LLM (OFF by default for latency; when enabled, the weights
   //     auto-download once and cache — no manual setup) ---
   cleanupEnabled: false,       // run the local cleanup LLM on the transcript

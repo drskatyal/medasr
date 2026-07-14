@@ -17,6 +17,7 @@ const { injectText, replaceText, setFocusLock } = require('./inject');
 const focus = require('./focus');
 const { LlmEngine } = require('./llm');
 const { cleanupTranscript } = require('./cleanup');
+const { applyCommands } = require('./commands');
 const { SileroVad } = require('./vad');
 const { RealtimeSession } = require('./realtime');
 const provision = require('./provision');
@@ -104,7 +105,11 @@ async function ensureRealtime() {
     rt = new RealtimeSession({
       vad,
       getSettings: () => settings,
-      transcribe: (pcm) => asr.transcribe(pcm),
+      transcribe: async (pcm) => {
+        let t = await asr.transcribe(pcm);
+        if (settings.voiceCommands) t = applyCommands(t);
+        return t;
+      },
       cleanup: (text) => (settings.cleanupEnabled && llm) ? cleanupTranscript(llm, text) : Promise.resolve(null),
       hooks: {
         setState: (s) => setPill(s === 'idle' ? 'idle' : 'recording'), // orb: red during session, black when idle
@@ -194,6 +199,8 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
         if (cleaned) text = cleaned;
       } catch (e) { log('cleanup failed, using raw:', e && e.message || e); }
     }
+
+    if (settings.voiceCommands) text = applyCommands(text);   // "period", "new paragraph", …
 
     setPill('idle');
     if (text && settings.autoInject) { log('injecting text…'); await injectText(text); log('inject done'); }

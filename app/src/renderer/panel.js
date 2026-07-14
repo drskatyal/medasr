@@ -33,6 +33,7 @@ async function init() {
 
   $('autoInject').checked = settings.autoInject !== false;
   $('lockFocus').checked = settings.lockFocus !== false;
+  $('voiceCommands').checked = settings.voiceCommands !== false;
   $('hotkey').value = settings.hotkey || 'Alt+Q';
   $('modelPath').value = settings.llmModelPath || '';
 
@@ -83,6 +84,7 @@ async function init() {
       cleanupEnabled: enabled,
       autoInject: $('autoInject').checked,
       lockFocus: $('lockFocus').checked,
+      voiceCommands: $('voiceCommands').checked,
       hotkey: $('hotkey').value.trim() || 'Alt+Q',
       llmModelPath: $('modelPath').value.trim(),
       realtimeMode: $('realtimeMode').checked,
