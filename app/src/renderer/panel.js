@@ -28,7 +28,12 @@ async function init() {
 
   // Built-in command reference list
   (function renderCommands() {
-    const order = [['internal', 'Dictation control'], ['runApp', 'Open apps'], ['systemKey', 'System']];
+    const order = [['internal', 'Dictation control'], ['keys', 'Editing (keyboard actions)'],
+      ['runApp', 'Open apps'], ['systemKey', 'System']];
+    // Pretty label for a canonical combo, e.g. "mod+shift+z" -> "Ctrl/Cmd+Shift+Z".
+    const isMac = /Mac/i.test(navigator.platform);
+    const comboLabel = (combo) => combo.split('+').map((p) =>
+      p === 'mod' ? (isMac ? 'Cmd' : 'Ctrl') : p.length === 1 ? p.toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1)).join('+');
     const el = $('cmdList'); el.innerHTML = '';
     for (const [type, title] of order) {
       const rows = cmds.filter((c) => c.type === type);
@@ -44,7 +49,13 @@ async function init() {
           alt.textContent = '  / ' + c.triggers.slice(1).map((t) => '“' + t + '”').join(' / ');
           say.appendChild(alt);
         }
-        row.appendChild(say); g.appendChild(row);
+        row.appendChild(say);
+        if (c.combo) {
+          const does = document.createElement('span'); does.className = 'does';
+          const k = document.createElement('kbd'); k.textContent = comboLabel(c.combo);
+          does.appendChild(k); row.appendChild(does);
+        }
+        g.appendChild(row);
       }
       el.appendChild(g);
     }

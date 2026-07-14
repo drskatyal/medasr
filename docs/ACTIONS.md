@@ -29,6 +29,29 @@ Cross-platform (Windows / macOS / Linux). The built-in set:
 | "start dictation" / "begin dictation" / "start listening" | Begin a dictation session (hands-free) |
 | "stop dictation" / "stop listening" / "stop recording" / "finish dictation" | End the current dictation |
 
+### Editing (keyboard actions)
+
+Sent to the focused app. "mod" = **Ctrl** on Windows/Linux, **Cmd** on macOS.
+
+| Say… | Key |
+|------|-----|
+| "copy" / "copy that" / "copy this" | mod+C |
+| "paste" / "paste here" / "paste that" | mod+V |
+| "cut" / "cut that" | mod+X |
+| "select all" / "select everything" | mod+A |
+| "undo" / "scratch that" / "delete that" / "strike that" | mod+Z |
+| "redo" / "redo that" | mod+Y (Win/Linux) · mod+Shift+Z (mac) |
+| "save" / "save report" / "save document" | mod+S |
+| "bold" / "italic" / "underline" | mod+B / mod+I / mod+U |
+| "next field" / "next box" / "press tab" | Tab |
+| "press enter" / "submit" | Enter |
+| "escape" / "cancel that" | Esc |
+| "backspace" | Backspace |
+| "delete word" / "delete last word" | mod+Backspace |
+| "forward delete" | Delete |
+
+Tip: because each dictated utterance is one paste, **"scratch that" / "undo"** cleanly removes the last thing you dictated.
+
 ### "Open PACS" target
 
 Set **Settings → "Open PACS" target** to whatever the "open pacs" command should

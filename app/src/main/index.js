@@ -384,7 +384,7 @@ ipcMain.handle('get-engines', () => ({
 
 // Built-in voice commands, for the reference list in Settings.
 ipcMain.handle('get-commands', () => actions.DEFAULT_COMMANDS.map((c) => ({
-  type: c.type, action: c.action || null, key: c.key || null, triggers: c.triggers,
+  type: c.type, action: c.action || null, key: c.key || null, combo: c.combo || null, triggers: c.triggers,
 })));
 
 // Live status for the settings window (so setup/errors are visible without pop-ups).
