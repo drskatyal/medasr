@@ -18,22 +18,103 @@ const focus = require('./focus');
 let focusLock = false;
 function setFocusLock(b) { focusLock = !!b; }
 
-// Real-time replace strategy: 'span' selects exactly the dictated characters
-// (safe anywhere, but sends N arrow keys = a visible sweep); 'all' uses Ctrl/
-// Cmd+A (one keystroke, instant — but replaces the ENTIRE field, so only for a
-// box that holds just your dictation).
-let replaceMode = 'span';
-function setReplaceMode(m) { replaceMode = m === 'all' ? 'all' : 'span'; }
+// Real-time replace strategy:
+//  'smart' (default): READ the target field (Ctrl/Cmd+A → copy → read clipboard),
+//    verify its tail matches the hidden slate (what we dictated), then repaint
+//    the field as (existing prefix)+(corrected) in ONE paste over the select-all.
+//    No character sweep, and it only touches the dictated tail — anything already
+//    in the field is preserved. Falls back to clipboard if it can't verify.
+//  'all': Ctrl/Cmd+A → paste corrected (no read) — fastest; assumes the field
+//    holds only your dictation.
+//  'span': select exactly N dictated chars (sends N arrow keys = a visible sweep).
+let replaceMode = 'smart';
+function setReplaceMode(m) { replaceMode = (m === 'all' || m === 'span') ? m : 'smart'; }
 
+function winKey(seq) {
+  return run('powershell', ['-NoProfile', '-Command',
+    `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("${seq}")`]);
+}
 async function selectAll() {
-  if (process.platform === 'darwin') {
-    await run('osascript', ['-e', 'tell application "System Events" to keystroke "a" using command down']);
-  } else if (process.platform === 'win32') {
-    await run('powershell', ['-NoProfile', '-Command',
-      'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^a")']);
-  } else {
-    await run('xdotool', ['key', '--clearmodifiers', 'ctrl+a']);
-  }
+  if (process.platform === 'darwin') await run('osascript', ['-e', 'tell application "System Events" to keystroke "a" using command down']);
+  else if (process.platform === 'win32') await winKey('^a');
+  else await run('xdotool', ['key', '--clearmodifiers', 'ctrl+a']);
+}
+async function copyKey() {
+  if (process.platform === 'darwin') await run('osascript', ['-e', 'tell application "System Events" to keystroke "c" using command down']);
+  else if (process.platform === 'win32') await winKey('^c');
+  else await run('xdotool', ['key', '--clearmodifiers', 'ctrl+c']);
+}
+async function collapseRight() {   // drop a selection without changing text
+  if (process.platform === 'darwin') await run('osascript', ['-e', 'tell application "System Events" to key code 124']);
+  else if (process.platform === 'win32') await winKey('{RIGHT}');
+  else await run('xdotool', ['key', '--clearmodifiers', 'Right']);
+}
+
+// Read the focused field's text via select-all + copy. Returns null if the copy
+// didn't take (field doesn't support it) so we never act on stale data.
+async function readFocusedField() {
+  const PROBE = '__flowrad_probe__';
+  clipboard.writeText(PROBE);
+  await selectAll(); await sleep(80);   // field is now fully selected
+  await copyKey(); await sleep(150);
+  const t = clipboard.readText();
+  return (!t || t === PROBE) ? null : t;
+}
+
+// The 'smart' replace: verify + repaint, preserving any pre-existing content.
+async function replaceSmart(rawTyped, corrected) {
+  return serialClip(async () => {
+    const orig = clipboard.readText();
+    let handled = false;
+    try {
+      if (focusLock) { await focus.restoreTarget(); await sleep(60); }
+      const fieldRaw = await readFocusedField();     // leaves the field all-selected
+      if (fieldRaw == null) {
+        await collapseRight(); handled = true;
+        clipboard.writeText(corrected);
+        return { replaced: false, reason: 'could not read field — corrected text on clipboard' };
+      }
+      const field = fieldRaw.replace(/\r/g, '');
+      const raw = rawTyped.replace(/\r/g, '');
+      let next = null;
+      if (field.endsWith(raw)) next = field.slice(0, field.length - raw.length) + corrected;
+      else {
+        const t = raw.replace(/\s+$/, '');
+        const idx = field.lastIndexOf(t);
+        if (idx >= 0 && field.slice(idx + t.length).trim() === '') next = field.slice(0, idx) + corrected;
+      }
+      if (next == null) {   // our dictation isn't the field's tail (it changed) — don't touch it
+        await collapseRight(); handled = true;
+        clipboard.writeText(corrected);
+        return { replaced: false, reason: 'field changed — corrected text on clipboard' };
+      }
+      clipboard.writeText(next);
+      await sleep(60);
+      await paste();        // field is all-selected → paste replaces it in one shot
+      await sleep(160);
+      handled = true;
+      return { replaced: true, mode: 'smart' };
+    } catch (e) {
+      try { if (!handled) await collapseRight(); } catch (x) {}
+      return { replaced: false, reason: String(e) };
+    } finally {
+      clipboard.writeText(orig);
+    }
+  });
+}
+
+async function replaceAllField(corrected) {   // 'all' mode: no read, whole field
+  return serialClip(async () => {
+    const orig = clipboard.readText();
+    try {
+      if (focusLock) { await focus.restoreTarget(); await sleep(60); }
+      clipboard.writeText(corrected); await sleep(60);
+      await selectAll(); await sleep(80);
+      await paste(); await sleep(160);
+      return { replaced: true, mode: 'all' };
+    } catch (e) { return { replaced: false, reason: String(e) }; }
+    finally { clipboard.writeText(orig); }
+  });
 }
 
 function run(cmd, args) {
@@ -133,8 +214,11 @@ async function replaceText(oldText, newText, graphemeLen) {
     clipboard.writeText(newText);
     return { replaced: false, reason: 'unsafe shrink — corrected text copied to clipboard' };
   }
-  // 'span' mode only: a very long selection via key-repeat is slow/lossy.
-  if (replaceMode !== 'all' && n > 3000) {
+  // Default: verify-and-repaint (no sweep, preserves pre-existing field content).
+  if (replaceMode === 'smart') return replaceSmart(oldText, newText);
+  if (replaceMode === 'all') return replaceAllField(newText);
+  // 'span' fallback: select exactly the dictated chars (sends N keys).
+  if (n > 3000) {
     clipboard.writeText(newText);
     return { replaced: false, reason: 'too long — corrected text copied to clipboard' };
   }
