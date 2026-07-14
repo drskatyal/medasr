@@ -36,7 +36,8 @@ let source = null;
 let processor = null;
 let nativeSR = 48000;
 let warm = false;         // mic pipeline is alive and buffering
-let recording = false;
+let recording = false;    // push-to-talk capture in progress
+let streaming = false;    // real-time mode: stream frames to main
 let preRoll = [];         // rolling last ~PREROLL_S of audio (Float32Array chunks)
 let collected = [];       // chunks captured during the active recording
 
@@ -69,6 +70,7 @@ async function ensureWarm() {
     let total = preRoll.reduce((n, c) => n + c.length, 0);
     while (preRoll.length > 1 && total - preRoll[0].length >= maxPre) total -= preRoll.shift().length;
     if (recording) collected.push(data);
+    if (streaming) { try { window.medasr.sendFrame(resampleTo16k(data, nativeSR)); } catch (err) {} }
   };
   source.connect(processor);
   processor.connect(audioCtx.destination);
@@ -127,14 +129,19 @@ function resampleTo16k(input, srcSR) {
 window.medasr.onState(setState);
 window.medasr.onRecord(async (msg) => {
   if (msg.action === 'start') {
-    try { await startCapture(); } catch (e) { setState('idle'); }
+    if (msg.mode === 'realtime') {
+      const ok = await ensureWarm();
+      if (ok) { streaming = true; rlog('realtime streaming on'); } else { streaming = false; setState('idle'); }
+    } else {
+      try { await startCapture(); } catch (e) { setState('idle'); }
+    }
   } else if (msg.action === 'stop') {
+    if (streaming) { streaming = false; rlog('realtime streaming off'); return; }
     const pcm = stopCapture();
     const rms = computeRms(pcm);
     const secs = pcm.length / 16000;
     rlog('stop -> ' + secs.toFixed(2) + 's, rms=' + rms.toFixed(4));
-    // Skip near-silent captures so a stray toggle doesn't transcribe ambient
-    // noise (and spam). Require a bit of real speech energy + length.
+    // Skip near-silent captures so a stray toggle doesn't transcribe ambient noise.
     if (secs < 0.3 || rms < 0.006) { rlog('no real speech -> not sending'); return; }
     await window.medasr.sendAudio(pcm);
   }

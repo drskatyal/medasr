@@ -35,6 +35,22 @@ async function init() {
   $('hotkey').value = settings.hotkey || 'Alt+Q';
   $('modelPath').value = settings.llmModelPath || '';
 
+  // real-time / VAD controls
+  $('realtimeMode').checked = !!settings.realtimeMode;
+  $('realtimeReplace').checked = settings.realtimeReplace !== false;
+  $('vadSilenceMs').value = settings.vadSilenceMs ?? 700;
+  $('vadProbThreshold').value = settings.vadProbThreshold ?? 0.5;
+  $('vadMinSpeechMs').value = settings.vadMinSpeechMs ?? 250;
+  const sync = () => {
+    $('vadSilenceVal').textContent = $('vadSilenceMs').value;
+    $('vadThreshVal').textContent = $('vadProbThreshold').value;
+    $('vadMinVal').textContent = $('vadMinSpeechMs').value;
+    $('vadBox').style.display = $('realtimeMode').checked ? 'block' : 'none';
+  };
+  ['vadSilenceMs', 'vadProbThreshold', 'vadMinSpeechMs', 'realtimeMode'].forEach(
+    (id) => $(id).addEventListener('input', sync));
+  sync();
+
   $('save').addEventListener('click', async () => {
     const sel = $('cleanup').value;
     const enabled = sel !== 'off';
@@ -45,6 +61,11 @@ async function init() {
       autoInject: $('autoInject').checked,
       hotkey: $('hotkey').value.trim() || 'Alt+Q',
       llmModelPath: $('modelPath').value.trim(),
+      realtimeMode: $('realtimeMode').checked,
+      realtimeReplace: $('realtimeReplace').checked,
+      vadSilenceMs: Number($('vadSilenceMs').value),
+      vadProbThreshold: Number($('vadProbThreshold').value),
+      vadMinSpeechMs: Number($('vadMinSpeechMs').value),
     });
     const s = $('saved');
     s.textContent = enabled ? 'Saved ✓ — downloading/loading the cleaning model…' : 'Saved ✓';

@@ -58,6 +58,15 @@ function sttModelDir(engineId) {
   return d;
 }
 
+// Silero VAD ONNX (~2MB, MIT) for real-time dictation. Auto-downloaded + cached.
+const SILERO_URL = 'https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.onnx';
+async function ensureVadModel({ onProgress } = {}) {
+  const dest = path.join(modelsDir(), 'silero_vad.onnx');
+  if (fs.existsSync(dest) && fs.statSync(dest).size > 1e5) return dest;
+  await downloadFile(SILERO_URL, dest, { onProgress });
+  return dest;
+}
+
 function localPathFor(id) {
   const entry = CATALOG[id];
   if (!entry) return null;
@@ -84,4 +93,4 @@ async function ensureModel(id, { hfToken, onProgress } = {}) {
   return dest;
 }
 
-module.exports = { CATALOG, modelsDir, sttModelDir, localPathFor, isInstalled, ensureModel };
+module.exports = { CATALOG, modelsDir, sttModelDir, ensureVadModel, localPathFor, isInstalled, ensureModel };

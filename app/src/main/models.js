@@ -51,11 +51,12 @@ const DEFAULTS = {
   cleanupModel: 'lfm2.5-8b-a1b', // default model (auto-downloaded on first enable)
   llmModelPath: '',            // optional explicit GGUF override; else auto-provisioned
   sttEngine: 'medasr',         // 'medasr' | 'gemma4-audio' (future) | ...
-  // --- real-time (VAD) dictation: hands-free, auto-segment on pauses ---
+  // --- real-time (VAD, Silero) dictation: hands-free, auto-segment on pauses ---
   realtimeMode: false,         // press hotkey once, speak; pauses end each utterance
-  vadThreshold: 0.012,         // RMS speech/silence cutoff (higher = needs louder speech)
+  vadProbThreshold: 0.5,       // Silero speech-probability cutoff (0.35–0.6 typical)
   vadSilenceMs: 700,           // pause length (ms) that finalizes an utterance
-  vadMinSpeechMs: 300,         // ignore speech blips shorter than this
+  vadMinSpeechMs: 250,         // ignore speech blips shorter than this
+  realtimeReplace: true,       // clean once at end and replace typed text (else clipboard-only)
 };
 
 function loadSettings() {

@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('medasr', {
   onRecord: (cb) => ipcRenderer.on('record', (_e, msg) => cb(msg)),
   // Send captured PCM (transferable ArrayBuffer of Float32) to main.
   sendAudio: (float32) => ipcRenderer.invoke('audio-chunk', float32),
+  // Real-time mode: stream 16k PCM frames continuously.
+  sendFrame: (float32) => ipcRenderer.send('audio-frame', float32),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   setSettings: (s) => ipcRenderer.invoke('set-settings', s),
   getEngines: () => ipcRenderer.invoke('get-engines'),

@@ -13,14 +13,18 @@ function log(...a) { console.log('[medasr]', ...a); }
 
 const { Asr } = require('./asr');
 const { ParakeetAsr } = require('./asr_parakeet');
-const { injectText } = require('./inject');
+const { injectText, replaceText } = require('./inject');
 const { LlmEngine } = require('./llm');
 const { cleanupTranscript } = require('./cleanup');
+const { SileroVad } = require('./vad');
+const { RealtimeSession } = require('./realtime');
 const provision = require('./provision');
 const engines = require('./engines');
 const models = require('./models');
 
 let llm = null;      // cleanup LLM sidecar (only started when enabled + configured)
+let vad = null;      // Silero VAD (loaded on first real-time use)
+let rt = null;       // RealtimeSession
 let settingsWin = null;
 let llmState = 'off';  // 'off' | 'downloading' | 'loading' | 'ready'
 let llmPct = 0;
@@ -77,21 +81,68 @@ function createPill() {
 function setPill(state, pct) { if (pill) pill.webContents.send('state', state, pct); }
 
 // ---------- recording lifecycle ----------
-function startRecording() {
-  log('hotkey -> start. modelReady =', modelReady);
+async function ensureRealtime() {
+  if (!vad) {
+    setPill('downloading');
+    const modelPath = await provision.ensureVadModel({ onProgress: ({ pct }) => log('vad download', pct + '%') });
+    vad = await new SileroVad(modelPath).load();
+    setPill('idle');
+    log('Silero VAD loaded');
+  }
+  if (!rt) {
+    rt = new RealtimeSession({
+      vad,
+      getSettings: () => settings,
+      transcribe: (pcm) => asr.transcribe(pcm),
+      cleanup: (text) => (settings.cleanupEnabled && llm) ? cleanupTranscript(llm, text) : Promise.resolve(null),
+      hooks: {
+        setState: (s) => setPill(s === 'idle' ? 'idle' : 'recording'), // orb: red during session, black when idle
+        typeDelta: async (t) => { if (settings.autoInject) await injectText(t); },
+        replaceAll: async (oldT, newT, glen) => {
+          if (!settings.realtimeReplace) { require('electron').clipboard.writeText(newT); log('[rt] replace off -> clipboard'); return; }
+          const r = await replaceText(oldT, newT, glen);
+          log('[rt] replace:', JSON.stringify(r));
+        },
+        log: (m) => log('[rt]', m),
+      },
+    });
+  }
+  return rt;
+}
+
+async function startRecording() {
+  log('hotkey -> start. modelReady =', modelReady, 'realtime =', !!settings.realtimeMode);
   if (recording || !modelReady) {
     if (!modelReady) notify('Model not ready', 'Run the conversion pipeline first (see RUNBOOK.md).');
     return;
   }
   recording = true;
+  if (settings.realtimeMode) {
+    try {
+      await ensureRealtime();
+      rt.start();
+      pill.webContents.send('record', { action: 'start', mode: 'realtime' });
+      return;
+    } catch (e) {
+      recording = false; setPill('idle');
+      log('realtime start failed:', e && e.message || e);
+      notify('Real-time unavailable', 'Falling back — see logs. ' + (e && e.message || e));
+      return;
+    }
+  }
   setPill('recording');
   pill.webContents.send('record', { action: 'start' });
 }
 
-function stopRecording() {
+async function stopRecording() {
   log('hotkey -> stop');
   if (!recording) return;
   recording = false;
+  if (settings.realtimeMode && rt) {
+    pill.webContents.send('record', { action: 'stop' });  // renderer stops streaming
+    try { await rt.finish(); } catch (e) { log('rt finish err:', e && e.message || e); setPill('idle'); }
+    return;
+  }
   setPill('transcribing');
   pill.webContents.send('record', { action: 'stop' });
 }
@@ -141,6 +192,13 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
     return { text: '', error: String(e) };
   } finally {
     transcribing = false;
+  }
+});
+
+// Real-time mode: renderer streams 16k PCM frames here during a session.
+ipcMain.on('audio-frame', (_e, arr) => {
+  if (rt && recording && settings.realtimeMode) {
+    rt.onFrame(arr instanceof Float32Array ? arr : new Float32Array(arr));
   }
 });
 
