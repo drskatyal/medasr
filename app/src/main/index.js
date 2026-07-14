@@ -95,6 +95,7 @@ function setPill(state, pct) { if (pill) pill.webContents.send('state', state, p
 
 // ---------- recording lifecycle ----------
 async function ensureRealtime() {
+  if (!vad && (vadStatus.startsWith('downloading') || vadStatus === 'loading')) return; // already in progress
   if (!vad) {
     try {
       vadStatus = 'downloading'; refreshTrayMenu();
@@ -161,6 +162,7 @@ function setCmdListen(on) { if (pill && !pill.isDestroyed()) pill.webContents.se
 
 async function ensureCommandListener() {
   if (voskCmd || !settings.alwaysOnCommands) return;
+  if (cmdStatus.startsWith('downloading') || cmdStatus === 'loading') return; // already in progress
   try {
     cmdStatus = 'downloading'; refreshTrayMenu();
     const dir = await provision.ensureVoskModel({ onProgress: ({ pct }) => { cmdStatus = `downloading ${pct}%`; } });
@@ -171,8 +173,11 @@ async function ensureCommandListener() {
     setCmdListen(true);
     log('always-on command listener ready');
   } catch (e) {
-    cmdStatus = 'error: ' + (e && e.message || e); refreshTrayMenu();
-    log('command listener unavailable (continuing without it):', e && e.message || e);
+    const raw = String(e && e.message || e);
+    const noModule = /Cannot find module 'vosk'/.test(raw);
+    cmdStatus = noModule ? 'not installed (run: npm install vosk)' : 'error: ' + raw.split('\n')[0];
+    refreshTrayMenu();
+    log('command listener unavailable (continuing without it):', noModule ? "vosk module not installed" : raw.split('\n')[0]);
   }
 }
 
@@ -564,6 +569,9 @@ async function loadAsr() {
 
 // Provision (download-once + cache) the cleanup weights, then load the engine.
 async function ensureCleanupLlm() {
+  // Don't restart a download/load that's already running (every Save used to
+  // re-trigger it, hammering the network and filling the disk with retries).
+  if (llmState === 'downloading' || llmState === 'loading') { log('cleanup already in progress; ignoring'); return; }
   const id = settings.cleanupModel && settings.cleanupModel !== 'off'
     ? settings.cleanupModel : 'lfm2.5-8b-a1b';
   try {
