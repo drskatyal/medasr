@@ -22,9 +22,18 @@ window.addEventListener('mouseup', () => {
   dragFrom = null;
 });
 
-// Dead simple: red only while recording, black otherwise. No other states.
-function setState(state) {
-  document.body.className = state === 'recording' ? 'rec' : '';
+// Orb states: idle (black), recording (red), and the processing states
+// transcribing / cleaning / downloading (tint + smooth arc + small caption).
+const cap = document.getElementById('cap');
+function setState(state, pct) {
+  const cls = { recording: 'rec', transcribing: 'transcribing', cleaning: 'cleaning', downloading: 'downloading' }[state] || '';
+  document.body.className = cls;
+  if (cap) {
+    cap.textContent = state === 'cleaning' ? 'Cleaning…'
+      : state === 'transcribing' ? 'Transcribing…'
+      : state === 'downloading' ? (typeof pct === 'number' ? pct + '%' : 'Downloading…')
+      : '';
+  }
 }
 
 const TARGET_SR = 16000;

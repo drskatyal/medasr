@@ -132,7 +132,12 @@ async function ensureRealtime() {
         if (settings.voiceCommands) t = applyCommands(t);
         return t;
       },
-      cleanup: (text) => (settings.cleanupEnabled && llm) ? cleanupTranscript(llm, text) : Promise.resolve(null),
+      cleanup: async (text) => {
+        if (!(settings.cleanupEnabled && llm)) return null;
+        setPill('cleaning');                         // show the cleaning cue near the orb
+        try { return await cleanupTranscript(llm, text); }
+        finally { setPill('idle'); }
+      },
       hooks: {
         setState: (s) => setPill(s === 'idle' ? 'idle' : 'recording'), // orb: red during session, black when idle
         typeDelta: async (t) => { if (settings.autoInject) await injectText(t); },

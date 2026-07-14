@@ -48,6 +48,24 @@ async function init() {
     else if (downloadingRe.test(state)) { btn.textContent = state.replace(/^.*?(\d+%).*$/, 'Downloading $1'); if (!/\d+%/.test(btn.textContent)) btn.textContent = 'Working…'; btn.disabled = true; }
     else { btn.textContent = 'Download'; btn.disabled = false; }
   }
+  // Drive a download progress bar from a status string: a "42%" shows a filled
+  // bar; a wordy "loading…/extracting…" shows an indeterminate sweep; otherwise
+  // it's hidden (off / ready / error — the text row carries those).
+  function setBar(id, state, active) {
+    const pb = $(id);
+    if (!pb) return;
+    const str = String(state || '');
+    const m = str.match(/(\d+)\s*%/);
+    if (active && m) {
+      pb.className = 'pbar show';
+      pb.querySelector('i').style.width = m[1] + '%';
+      pb.querySelector('em').textContent = m[1] + '%';
+    } else if (active && /downloading|loading|extract|working|starting/i.test(str) && !/ready/i.test(str)) {
+      pb.className = 'pbar indet';
+    } else {
+      pb.className = 'pbar';
+    }
+  }
   async function refreshStatus() {
     let s;
     try { s = await window.medasr.getStatus(); } catch (e) { return; }
@@ -61,15 +79,19 @@ async function init() {
     $('stClean').textContent = cleanSel === 'off' ? 'off' : `${cleanSel} — ${s.cleaning}`;
     $('btnDlClean').style.display = cleanSel === 'off' ? 'none' : 'inline-block';
     btnState($('btnDlClean'), s.cleaning, /download|loading/i, /ready|✓/i);
+    setBar('pbClean', s.cleaning, cleanSel !== 'off');
     // Real-time VAD
-    $('stVad').textContent = $('realtimeMode').checked ? s.vad : 'off';
-    $('btnDlVad').style.display = $('realtimeMode').checked ? 'inline-block' : 'none';
+    const vadOn = $('realtimeMode').checked;
+    $('stVad').textContent = vadOn ? s.vad : 'off';
+    $('btnDlVad').style.display = vadOn ? 'inline-block' : 'none';
     btnState($('btnDlVad'), s.vad, /download|loading/i, /ready/i);
+    setBar('pbVad', s.vad, vadOn);
     // Always-on commands (Vosk)
     const cmdOn = $('alwaysOnCommands').checked;
     $('stCmd').textContent = cmdOn ? (s.commands || 'off') : 'off';
     $('btnDlCmd').style.display = cmdOn ? 'inline-block' : 'none';
     btnState($('btnDlCmd'), s.commands || 'off', /download|loading/i, /ready/i);
+    setBar('pbCmd', s.commands || 'off', cmdOn);
   }
   $('btnDlClean').addEventListener('click', async () => { $('btnDlClean').textContent = 'Starting…'; $('btnDlClean').disabled = true; await window.medasr.setup('cleanup'); });
   $('btnDlVad').addEventListener('click', async () => { $('btnDlVad').textContent = 'Starting…'; $('btnDlVad').disabled = true; await window.medasr.setup('vad'); });
