@@ -12,6 +12,7 @@
 // (Linux needs `xdotool` on X11 or `wtype` on Wayland installed).
 
 const { clipboard } = require('electron');
+function log(...a) { console.log('[medasr]', ...a); }
 const { execFile } = require('child_process');
 const focus = require('./focus');
 
@@ -89,10 +90,16 @@ async function replaceSmart(rawTyped, corrected) {
         return { replaced: false, reason: 'field changed — corrected text on clipboard' };
       }
       clipboard.writeText(next);
-      await sleep(60);
-      await paste();        // field is all-selected → paste replaces it in one shot
-      await sleep(160);
+      await sleep(90);
+      // Re-select the whole field RIGHT before pasting — the earlier selection
+      // from the read step may not survive the gap, so a paste could just insert
+      // instead of replace. Focus is already on the target; don't re-grab it.
+      await selectAll();
+      await sleep(90);
+      await pasteKeys();    // paste over the fresh full selection = replace
+      await sleep(250);     // let the target consume the paste before we restore the clipboard
       handled = true;
+      log(`[inject] smart replace: field ${field.length} -> ${next.length} chars`);
       return { replaced: true, mode: 'smart' };
     } catch (e) {
       try { if (!handled) await collapseRight(); } catch (x) {}
@@ -108,9 +115,9 @@ async function replaceAllField(corrected) {   // 'all' mode: no read, whole fiel
     const orig = clipboard.readText();
     try {
       if (focusLock) { await focus.restoreTarget(); await sleep(60); }
-      clipboard.writeText(corrected); await sleep(60);
-      await selectAll(); await sleep(80);
-      await paste(); await sleep(160);
+      clipboard.writeText(corrected); await sleep(80);
+      await selectAll(); await sleep(90);
+      await pasteKeys(); await sleep(250);   // pasteKeys: don't re-grab focus (would deselect)
       return { replaced: true, mode: 'all' };
     } catch (e) { return { replaced: false, reason: String(e) }; }
     finally { clipboard.writeText(orig); }
@@ -153,13 +160,16 @@ async function pasteLinux() {
   }
 }
 
+async function pasteKeys() {   // just send the paste shortcut (no focus change)
+  if (process.platform === 'darwin') await pasteMac();
+  else if (process.platform === 'win32') await pasteWin();
+  else await pasteLinux();
+}
 async function paste() {
   // Bring the locked target field back to the foreground before pasting, so
   // text lands in the original field even if focus moved (e.g. PACS).
   if (focusLock) await focus.restoreTarget();
-  if (process.platform === 'darwin') await pasteMac();
-  else if (process.platform === 'win32') await pasteWin();
-  else await pasteLinux();
+  await pasteKeys();
 }
 
 // Inject text at the current cursor position of the focused app. Serialized on
@@ -230,12 +240,11 @@ async function replaceText(oldText, newText, graphemeLen) {
       // Restore the locked target FIRST, so the selection happens in the report
       // field — not in whatever else grabbed focus during cleanup.
       if (focusLock) { await focus.restoreTarget(); await sleep(60); }
-      if (replaceMode === 'all') await selectAll();   // one keystroke, no sweep (whole field)
-      else await selectLeft(n);                       // exactly the dictated span (sends N keys)
+      await selectLeft(n);        // exactly the dictated span (sends N keys)
       await sleep(120);
-      await paste();              // paste() re-asserts focus, then pastes
-      await sleep(180);
-      return { replaced: true };
+      await pasteKeys();          // don't re-grab focus (would drop the selection)
+      await sleep(220);
+      return { replaced: true, mode: 'span' };
     } catch (e) {
       return { replaced: false, reason: String(e) };
     } finally {
