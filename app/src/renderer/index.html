@@ -4,73 +4,24 @@
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline';" />
   <style>
-    :root {
-      --idle:   #3a3f4b;
-      --listen: #ef4444;   /* recording */
-      --busy:   #f59e0b;   /* transcribing */
-      --clean:  #3b82f6;   /* cleaning (LLM) */
-      --done:   #22c55e;   /* success */
-    }
     html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
       -webkit-user-select: none; user-select: none; }
     .wrap { height: 100%; display: flex; align-items: center; justify-content: center; }
-
-    /* the mic orb (click target) */
+    /* Dead simple: black when idle, red when recording. No animations. */
     .orb {
       -webkit-app-region: no-drag; cursor: pointer;
-      position: relative; width: 56px; height: 56px; border-radius: 50%;
+      width: 56px; height: 56px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      background: var(--c, var(--idle));
-      box-shadow: 0 6px 20px rgba(0,0,0,.45);
-      transition: background .35s ease, transform .18s ease, box-shadow .35s ease;
+      background: #111318; box-shadow: 0 6px 20px rgba(0,0,0,.45);
+      transition: background .12s linear;
     }
-    .orb:hover { transform: scale(1.06); }
-    .orb svg { width: 24px; height: 24px; fill: #fff; opacity: .95; }
-
-    /* expanding ring while listening (smooth, not a blink) */
-    .ring {
-      position: absolute; inset: 0; border-radius: 50%;
-      border: 3px solid var(--c, var(--idle)); opacity: 0; pointer-events: none;
-    }
-    body.listening { --c: var(--listen); }
-    body.listening .orb { box-shadow: 0 0 0 6px rgba(239,68,68,.18), 0 6px 20px rgba(0,0,0,.45); }
-    body.listening .ring { animation: ripple 1.6s ease-out infinite; }
-    @keyframes ripple {
-      0%   { transform: scale(1);   opacity: .55; }
-      100% { transform: scale(1.9); opacity: 0; }
-    }
-
-    body.transcribing { --c: var(--busy); }
-    body.transcribing .orb::after, body.cleaning .orb::after {
-      content: ''; position: absolute; inset: -6px; border-radius: 50%;
-      border: 3px solid transparent; border-top-color: #fff;
-      animation: spin .8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    body.cleaning { --c: var(--clean); }
-    body.downloading { --c: var(--clean); }
-    body.downloading .orb::after {
-      content: ''; position: absolute; inset: -6px; border-radius: 50%;
-      border: 3px solid transparent; border-top-color: #fff; animation: spin .8s linear infinite;
-    }
-    body.done { --c: var(--done); }
-
-    /* little tooltip bubble beside the orb (used for "cleaning…") */
-    .tip {
-      position: absolute; left: 50%; top: 8px; transform: translateX(-50%);
-      background: rgba(20,22,28,.92); color: #f2f4f8; font-size: 11px; font-weight: 600;
-      padding: 4px 9px; border-radius: 10px; white-space: nowrap; opacity: 0;
-      transition: opacity .2s; pointer-events: none;
-    }
-    body.cleaning .tip, body.downloading .tip { opacity: 1; }
+    .orb svg { width: 24px; height: 24px; fill: #fff; opacity: .92; }
+    body.rec .orb { background: #ef4444; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="tip">cleaning…</div>
     <div class="orb" id="orb" title="Dictate (Alt+Q)">
-      <span class="ring"></span>
       <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a1 1 0 1 1 2 0 7 7 0 0 1-6 6.92V21a1 1 0 1 1-2 0v-3.08A7 7 0 0 1 5 11a1 1 0 1 1 2 0 5 5 0 0 0 10 0z"/></svg>
     </div>
   </div>

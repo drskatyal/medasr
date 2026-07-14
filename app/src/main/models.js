@@ -44,12 +44,18 @@ const DEFAULTS = {
   hotkey: 'Alt+Q',    // simple two-key toggle
   autoInject: true,   // type into focused app after transcribing
   playSounds: true,
+  notifications: false,  // OS pop-up notifications — off by default (quiet app)
   // --- cleanup LLM (OFF by default for latency; when enabled, the weights
   //     auto-download once and cache — no manual setup) ---
   cleanupEnabled: false,       // run the local cleanup LLM on the transcript
   cleanupModel: 'lfm2.5-8b-a1b', // default model (auto-downloaded on first enable)
   llmModelPath: '',            // optional explicit GGUF override; else auto-provisioned
   sttEngine: 'medasr',         // 'medasr' | 'gemma4-audio' (future) | ...
+  // --- real-time (VAD) dictation: hands-free, auto-segment on pauses ---
+  realtimeMode: false,         // press hotkey once, speak; pauses end each utterance
+  vadThreshold: 0.012,         // RMS speech/silence cutoff (higher = needs louder speech)
+  vadSilenceMs: 700,           // pause length (ms) that finalizes an utterance
+  vadMinSpeechMs: 300,         // ignore speech blips shorter than this
 };
 
 function loadSettings() {

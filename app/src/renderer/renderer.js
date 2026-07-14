@@ -22,16 +22,9 @@ window.addEventListener('mouseup', () => {
   dragFrom = null;
 });
 
-const tipEl = document.querySelector('.tip');
-function setState(state, pct) {
-  const cls = state === 'recording' ? 'listening'
-    : (state === 'transcribing' || state === 'cleaning' || state === 'done' || state === 'downloading') ? state : '';
-  document.body.className = cls;
-  if (tipEl) {
-    tipEl.textContent = state === 'downloading'
-      ? `downloading… ${pct != null ? pct + '%' : ''}`
-      : 'cleaning…';
-  }
+// Dead simple: red only while recording, black otherwise. No other states.
+function setState(state) {
+  document.body.className = state === 'recording' ? 'rec' : '';
 }
 
 const TARGET_SR = 16000;
@@ -99,6 +92,12 @@ function stopCapture() {
   return resampleTo16k(merged, nativeSR);
 }
 
+function computeRms(frame) {
+  let s = 0;
+  for (let i = 0; i < frame.length; i++) s += frame[i] * frame[i];
+  return Math.sqrt(s / (frame.length || 1));
+}
+
 function mergeFloat32(chunks) {
   let len = 0;
   for (const c of chunks) len += c.length;
@@ -125,17 +124,18 @@ function resampleTo16k(input, srcSR) {
   return out;
 }
 
-// Warm the mic pipeline at startup so the very first dictation isn't clipped.
-ensureWarm().catch(() => {});
-
 window.medasr.onState(setState);
 window.medasr.onRecord(async (msg) => {
   if (msg.action === 'start') {
     try { await startCapture(); } catch (e) { setState('idle'); }
   } else if (msg.action === 'stop') {
     const pcm = stopCapture();
-    rlog('stop -> captured ' + pcm.length + ' samples @16k (' + (pcm.length / 16000).toFixed(2) + 's)');
-    // Transfer the underlying buffer to main to avoid a copy.
+    const rms = computeRms(pcm);
+    const secs = pcm.length / 16000;
+    rlog('stop -> ' + secs.toFixed(2) + 's, rms=' + rms.toFixed(4));
+    // Skip near-silent captures so a stray toggle doesn't transcribe ambient
+    // noise (and spam). Require a bit of real speech energy + length.
+    if (secs < 0.3 || rms < 0.006) { rlog('no real speech -> not sending'); return; }
     await window.medasr.sendAudio(pcm);
   }
 });

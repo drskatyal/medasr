@@ -24,6 +24,7 @@ let llm = null;      // cleanup LLM sidecar (only started when enabled + configu
 let settingsWin = null;
 let llmState = 'off';  // 'off' | 'downloading' | 'loading' | 'ready'
 let llmPct = 0;
+let transcribing = false;  // re-entrancy guard so transcriptions can't overlap/loop
 
 function cleaningStatus() {
   if (!settings.cleanupEnabled) return 'off';
@@ -95,17 +96,25 @@ function stopRecording() {
   pill.webContents.send('record', { action: 'stop' });
 }
 
-function toggleRecording() { log('hotkey fired'); recording ? stopRecording() : startRecording(); }
+let lastToggle = 0;
+function toggleRecording() {
+  const now = Date.now();
+  if (now - lastToggle < 500) { log('toggle debounced (key repeat?)'); return; } // ignore rapid re-fires
+  lastToggle = now;
+  log('hotkey fired');
+  recording ? stopRecording() : startRecording();
+}
 
 // Renderer delivers the captured 16kHz mono PCM here.
 ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
+  if (transcribing) { log('busy — ignoring overlapping audio-chunk'); return { text: '' }; }
+  transcribing = true;
   try {
     const pcm = float32Array instanceof Float32Array ? float32Array : new Float32Array(float32Array);
     log('audio-chunk received:', pcm.length, 'samples (', (pcm.length / 16000).toFixed(2), 's )');
     if (pcm.length < 1600) {              // < 0.1s of audio
       setPill('idle');
-      notify('No audio captured', 'The mic recorded nothing — check microphone permission for this app.');
-      log('PCM too short -> likely mic permission/capture issue');
+      log('PCM too short -> skipping');
       return { text: '' };
     }
     const t0 = Date.now();
@@ -113,11 +122,8 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
     const ms = Date.now() - t0;
     log('transcript:', JSON.stringify(text), `(${ms}ms)`);
 
-    // Optional local cleanup pass (off by default). When enabled and the LLM
-    // sidecar is ready, replace the raw transcript with the corrected one.
-    // TODO(next): show raw-vs-cleaned diff + explicit accept instead of silent.
     if (text && settings.cleanupEnabled && llm) {
-      setPill('cleaning');   // shows the "cleaning…" tooltip beside the mic
+      setPill('cleaning');
       try {
         const c0 = Date.now();
         const cleaned = await cleanupTranscript(llm, text);
@@ -126,17 +132,15 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
       } catch (e) { log('cleanup failed, using raw:', e && e.message || e); }
     }
 
-    setPill('done');
-    setTimeout(() => setPill('idle'), 900);
+    setPill('idle');
     if (text && settings.autoInject) { log('injecting text…'); await injectText(text); log('inject done'); }
-    if (text) notify('Transcribed', `${text.slice(0, 80)}${text.length > 80 ? '…' : ''} (${ms}ms)`);
-    else notify('Empty transcript', 'Audio was captured but no speech was recognized.');
     return { text, ms };
   } catch (e) {
     setPill('idle');
     log('ERROR in audio-chunk:', e);
-    notify('Transcription failed', String(e && e.message || e));
     return { text: '', error: String(e) };
+  } finally {
+    transcribing = false;
   }
 });
 
@@ -213,6 +217,10 @@ function refreshTrayMenu() {
 }
 
 function notify(title, body) {
+  // Off by default — the orb (red/black) and the typed text are the feedback.
+  // Everything still goes to the terminal log; enable pop-ups in settings if wanted.
+  log('note:', title, '—', body);
+  if (!settings.notifications) return;
   if (Notification.isSupported()) new Notification({ title, body, silent: !settings.playSounds }).show();
 }
 
