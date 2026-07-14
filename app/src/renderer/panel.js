@@ -35,6 +35,9 @@ async function init() {
   $('lockFocus').checked = settings.lockFocus !== false;
   $('voiceCommands').checked = settings.voiceCommands !== false;
   $('voiceNav').checked = settings.voiceNav !== false;
+  $('voiceActions').checked = settings.voiceActions !== false;
+  $('macros').value = settings.macros || '';
+  $('pacsCommand').value = settings.pacsCommand || '';
   $('hotkey').value = settings.hotkey || 'Alt+Q';
   $('modelPath').value = settings.llmModelPath || '';
 
@@ -94,6 +97,9 @@ async function init() {
       lockFocus: $('lockFocus').checked,
       voiceCommands: $('voiceCommands').checked,
       voiceNav: $('voiceNav').checked,
+      voiceActions: $('voiceActions').checked,
+      macros: $('macros').value,
+      pacsCommand: $('pacsCommand').value.trim(),
       hotkey: $('hotkey').value.trim() || 'Alt+Q',
       llmModelPath: $('modelPath').value.trim(),
       realtimeMode: $('realtimeMode').checked,

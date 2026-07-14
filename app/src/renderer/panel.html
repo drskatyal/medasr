@@ -77,6 +77,24 @@
   </div>
 
   <div class="row check">
+    <input type="checkbox" id="voiceActions" />
+    <label for="voiceActions" style="margin:0">Voice commands &amp; macros (“open chrome”, “show desktop”, “stop dictation”, and your templates)</label>
+  </div>
+
+  <div class="row">
+    <label for="macros">Macros — one per line as <code>trigger = expansion</code></label>
+    <textarea id="macros" rows="5" spellcheck="false"
+      style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(128,128,128,.4); background:transparent; color:inherit; font:13px ui-monospace, Menlo, Consolas, monospace; resize:vertical"></textarea>
+    <div class="hint">Say the trigger alone (e.g. “normal chest”) to type its expansion. Use <code>\n</code> for line breaks.</div>
+  </div>
+
+  <div class="row">
+    <label for="pacsCommand">“Open PACS” target (optional)</label>
+    <input type="text" id="pacsCommand" placeholder="Windows: C:\\Path\\viewer.exe   ·   macOS: app name or /path" />
+    <div class="hint">What the “open pacs” command launches. Leave blank if unused.</div>
+  </div>
+
+  <div class="row check">
     <input type="checkbox" id="realtimeMode" />
     <label for="realtimeMode" style="margin:0">Real-time mode (hands-free — pauses end each sentence)</label>
   </div>

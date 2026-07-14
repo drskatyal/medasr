@@ -48,6 +48,12 @@ const DEFAULTS = {
   lockFocus: true,       // remember the target field at dictation start; type back into it
   voiceCommands: true,   // spoken punctuation/formatting ("period", "new paragraph", …)
   voiceNav: true,        // spoken navigation ("go to liver", "find <term>") via Find
+  voiceActions: true,    // spoken commands ("open chrome", "show desktop", "stop dictation") + macros
+  macros: [              // user-editable "trigger = expansion" templates (typed on match)
+    'normal chest = No acute cardiopulmonary process. The heart size is normal. The lungs are clear. No pleural effusion or pneumothorax.',
+    'normal abdomen = No acute abdominal abnormality. The visualized bowel is unremarkable. No free air or free fluid.',
+  ].join('\n'),
+  pacsCommand: '',       // custom app/command launched by "open pacs" (exe path on Windows, .app name on macOS)
   // --- cleanup LLM (OFF by default for latency; when enabled, the weights
   //     auto-download once and cache — no manual setup) ---
   cleanupEnabled: false,       // run the local cleanup LLM on the transcript

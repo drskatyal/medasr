@@ -19,6 +19,7 @@ const { LlmEngine } = require('./llm');
 const { cleanupTranscript } = require('./cleanup');
 const { applyCommands } = require('./commands');
 const { parseNav, navigate } = require('./nav');
+const actions = require('./actions');
 const { SileroVad } = require('./vad');
 const { RealtimeSession } = require('./realtime');
 const provision = require('./provision');
@@ -108,6 +109,11 @@ async function ensureRealtime() {
       getSettings: () => settings,
       transcribe: async (pcm) => {
         let t = await asr.transcribe(pcm);
+        // Voice actions mid-session: a command is executed (type nothing); a
+        // macro expands to a template that is typed verbatim (skip formatting).
+        const act = await runVoiceActions(t);
+        if (act && act.handled) return '';
+        if (act && act.text != null) return act.text;
         // Voice navigation mid-session: jump the cursor, don't type the phrase.
         if (t && settings.voiceNav) {
           const term = parseNav(t);
@@ -183,6 +189,30 @@ function toggleRecording() {
   recording ? stopRecording() : startRecording();
 }
 
+// Voice actions: spoken commands that DO something instead of being typed.
+//  - a command (open chrome / show desktop / stop dictation) is EXECUTED and
+//    the utterance is swallowed (nothing typed).
+//  - a macro ("normal chest") expands into a template that IS typed.
+// Returns: { handled:true } if executed (type nothing); { text } if a macro
+// expansion should be typed; null if the utterance is ordinary dictation.
+async function runVoiceActions(text) {
+  if (!text || settings.voiceActions === false) return null;
+  const cmd = actions.matchCommand(text);
+  if (cmd) {
+    log('voice action:', cmd.type, JSON.stringify(cmd.triggers[0]));
+    await actions.executeCommand(cmd, {
+      pacsCommand: settings.pacsCommand || '',
+      // "stop dictation" must run AFTER this transcription returns, or it would
+      // re-enter stopRecording() while we're still inside the audio handler.
+      hooks: { stopDictation: () => setImmediate(() => { if (recording) stopRecording(); }) },
+    });
+    return { handled: true };
+  }
+  const macro = actions.matchMacro(text, actions.parseMacros(settings.macros || ''));
+  if (macro != null) { log('macro expand:', JSON.stringify(text)); return { text: macro }; }
+  return null;
+}
+
 // Renderer delivers the captured 16kHz mono PCM here.
 ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
   if (transcribing) { log('busy — ignoring overlapping audio-chunk'); return { text: '' }; }
@@ -199,6 +229,16 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
     let text = await asr.transcribe(pcm);
     const ms = Date.now() - t0;
     log('transcript:', JSON.stringify(text), `(${ms}ms)`);
+
+    // Voice actions: run a command (open app / show desktop / stop) or expand a
+    // macro. A command is swallowed; a macro is typed verbatim (skip cleanup).
+    const act = await runVoiceActions(text);
+    if (act && act.handled) { setPill('idle'); return { text: '' }; }
+    if (act && act.text != null) {
+      setPill('idle');
+      if (settings.autoInject) await injectText(act.text);
+      return { text: act.text };
+    }
 
     // Voice navigation: "go to <term>" / "find <term>" jumps the cursor (no typing).
     if (text && settings.voiceNav) {
