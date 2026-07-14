@@ -100,6 +100,7 @@ async function ensureWarm() {
 async function startCapture() {
   const ok = await ensureWarm();
   if (!ok) throw new Error('mic unavailable');
+  streaming = false;             // batch mode is NEVER streaming (clear any stuck real-time flag)
   collected = preRoll.slice();   // seed with the pre-roll so the start isn't cut
   recording = true;
   rlog('recording (with ' + PREROLL_S + 's pre-roll)');
