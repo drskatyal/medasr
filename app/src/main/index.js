@@ -18,6 +18,7 @@ const focus = require('./focus');
 const { LlmEngine } = require('./llm');
 const { cleanupTranscript } = require('./cleanup');
 const { applyCommands } = require('./commands');
+const { parseNav, navigate } = require('./nav');
 const { SileroVad } = require('./vad');
 const { RealtimeSession } = require('./realtime');
 const provision = require('./provision');
@@ -107,6 +108,15 @@ async function ensureRealtime() {
       getSettings: () => settings,
       transcribe: async (pcm) => {
         let t = await asr.transcribe(pcm);
+        // Voice navigation mid-session: jump the cursor, don't type the phrase.
+        if (t && settings.voiceNav) {
+          const term = parseNav(t);
+          if (term) {
+            if (settings.lockFocus) await focus.restoreTarget();
+            log('[rt] nav ->', term, JSON.stringify(await navigate(term)));
+            return '';
+          }
+        }
         if (settings.voiceCommands) t = applyCommands(t);
         return t;
       },
@@ -189,6 +199,17 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
     let text = await asr.transcribe(pcm);
     const ms = Date.now() - t0;
     log('transcript:', JSON.stringify(text), `(${ms}ms)`);
+
+    // Voice navigation: "go to <term>" / "find <term>" jumps the cursor (no typing).
+    if (text && settings.voiceNav) {
+      const term = parseNav(text);
+      if (term) {
+        if (settings.lockFocus) await focus.restoreTarget();
+        log('nav ->', term, JSON.stringify(await navigate(term)));
+        setPill('idle');
+        return { text: '' };
+      }
+    }
 
     if (text && settings.cleanupEnabled && llm) {
       setPill('cleaning');
