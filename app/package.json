@@ -33,6 +33,8 @@
     "appId": "com.flowrad.vr",
     "productName": "FlowRad Open Source VR",
     "icon": "build/icon.png",
+    "npmRebuild": true,
+    "buildDependenciesFromSource": false,
     "files": ["src/**/*", "assets/**/*", "!**/*.md"],
     "extraResources": [
       { "from": "../models", "to": "models", "filter": ["*.onnx", "silero_vad.onnx", "vosk-model-small-en-us-0.15/**"] }
