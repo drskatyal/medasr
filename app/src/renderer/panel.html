@@ -278,6 +278,13 @@
         <div class="hint">The cleaning model downloads automatically the first time it's enabled and is cached.
           Only set this to use your own GGUF file.</div>
       </div>
+      <div class="section-label">Performance</div>
+      <div class="card">
+        <div class="toggle"><input type="checkbox" id="gpuAccel">
+          <div><div class="t-label">Use GPU acceleration for cleaning</div>
+            <div class="t-sub">Offload the cleaning model to your GPU (Intel Arc / NVIDIA / AMD / Apple) when
+              available — much faster than CPU. Falls back to CPU automatically. <b id="gpuNow"></b></div></div></div>
+      </div>
       <div class="section-label">Notifications</div>
       <div class="card">
         <div class="toggle"><input type="checkbox" id="notifications">

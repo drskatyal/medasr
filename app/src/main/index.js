@@ -409,6 +409,7 @@ ipcMain.handle('get-status', () => {
     cleanSelected: settings.cleanupEnabled ? settings.cleanupModel : 'off',
     cleanActive: (settings.cleanupEnabled && llmState === 'ready') ? settings.cleanupModel : null,
     cleanState: llmState,
+    cleanBackend: (llm && llmState === 'ready') ? (llm.info ? llm.info().backend : null) : null,
     realtime: !!settings.realtimeMode, vad: vadStatus,
     commands: settings.alwaysOnCommands ? cmdStatus : 'off',
     sttInstallable, sttInstalled, sttDl: sttDlStatus, modelsDir,
@@ -639,7 +640,7 @@ async function ensureCleanupLlm() {
       }
     }
     llmState = 'loading'; refreshTrayMenu();
-    llm = await new LlmEngine({ modelPath }).load();
+    llm = await new LlmEngine({ modelPath, gpu: settings.gpuAccel }).load();
     llmState = 'ready'; refreshTrayMenu();
     log('cleanup LLM ready:', id);
   } catch (e) {

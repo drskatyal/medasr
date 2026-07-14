@@ -124,6 +124,7 @@ async function init() {
   $('voiceActions').checked = settings.voiceActions !== false;
   $('alwaysOnCommands').checked = settings.alwaysOnCommands !== false;
   $('notifications').checked = !!settings.notifications;
+  $('gpuAccel').checked = settings.gpuAccel !== 'off';
   $('pacsCommand').value = settings.pacsCommand || '';
 
   // --- macro table (stored as "trigger = text" lines; \n for line breaks) ---
@@ -213,6 +214,9 @@ async function init() {
       });
     }
     if ($('modelsDirNow') && s.modelsDir) $('modelsDirNow').textContent = 'Currently: ' + s.modelsDir;
+    if ($('gpuNow')) $('gpuNow').textContent = s.cleanBackend
+      ? (s.cleanBackend === 'cpu' ? 'Currently running on CPU (no GPU detected).' : `Currently running on ${s.cleanBackend.toUpperCase()}.`)
+      : '';
     // Real-time VAD
     const vadOn = $('realtimeMode').checked;
     $('stVad').textContent = vadOn ? s.vad : 'off';
@@ -265,6 +269,7 @@ async function init() {
       macros: window.__serializeMacros ? window.__serializeMacros() : (settings.macros || ''),
       pacsCommand: $('pacsCommand').value.trim(),
       notifications: $('notifications').checked,
+      gpuAccel: $('gpuAccel').checked ? 'auto' : 'off',
       hotkey: $('hotkey').value.trim() || 'Alt+Q',
       llmModelPath: $('modelPath').value.trim(),
       modelsDirOverride: $('modelsDir').value.trim(),
