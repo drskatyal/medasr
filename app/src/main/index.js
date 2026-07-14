@@ -12,6 +12,7 @@ const {
 function log(...a) { console.log('[medasr]', ...a); }
 
 const { Asr } = require('./asr');
+const { ParakeetAsr } = require('./asr_parakeet');
 const { injectText } = require('./inject');
 const { LlmEngine } = require('./llm');
 const { cleanupTranscript } = require('./cleanup');
@@ -148,10 +149,13 @@ ipcMain.handle('get-engines', () => ({
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_e, s) => {
   const wasCleanup = settings.cleanupEnabled;
+  const prevStt = settings.sttEngine;
   settings = { ...settings, ...s };
   models.saveSettings(settings);
   registerHotkey();
   refreshTrayMenu();
+  // Reload the STT engine if the user switched it.
+  if (settings.sttEngine !== prevStt) loadAsr();
   // If the user just turned cleaning on, provision + load the model now.
   if (settings.cleanupEnabled && !llm) ensureCleanupLlm();
   if (wasCleanup && !settings.cleanupEnabled && llm) { llm.stop(); llm = null; }
@@ -240,36 +244,54 @@ async function boot() {
   buildTray();
   registerHotkey();
 
-  // STT engine selection: only MedASR is wired today; others fall back with a note.
-  const eng = engines.sttEngine(settings.sttEngine);
-  if (eng && !eng.implemented) {
-    log(`STT engine '${eng.id}' not installed yet -> using MedASR`);
-    notify('Using MedASR', `“${eng.label}” isn’t installed yet — see docs/MODELS.md. Falling back to MedASR.`);
-  }
-
-  const modelPath = models.resolveModelPath();
-  const assetsDir = models.resolveAssetsDir();
-  log('modelPath =', modelPath);
-  log('assetsDir =', assetsDir);
-  if (modelPath) {
-    try {
-      asr = await new Asr({ modelPath, assetsDir }).init();
-      modelReady = true;
-      log('model loaded OK. Press', settings.hotkey, 'to dictate.');
-    } catch (e) {
-      log('model load FAILED:', e);
-      notify('Failed to load model', String(e && e.message || e));
-    }
-  } else {
-    log('NO MODEL FOUND at expected locations');
-    notify('No model found', 'Convert the model first — see RUNBOOK.md.');
-  }
+  await loadAsr();
   // Cleanup LLM: auto-download the selected model's weights on first use and
   // cache them, then load the bundled engine. All off unless cleanup is enabled.
   if (settings.cleanupEnabled) ensureCleanupLlm();
 
   refreshTrayMenu();
   initAutoUpdate();
+}
+
+// Load the selected STT engine. Parakeet-TDT engines (Omi Med STT / Parakeet
+// medical) run via sherpa-onnx if their model files are present; otherwise we
+// fall back to MedASR so the app always works.
+async function loadAsr() {
+  modelReady = false;
+  asr = null;
+  const engId = settings.sttEngine || 'medasr';
+  const eng = engines.sttEngine(engId);
+
+  if (eng && eng.runtime === 'parakeet-tdt') {
+    const dir = provision.sttModelDir(engId);
+    if (ParakeetAsr.isInstalled(dir)) {
+      try {
+        asr = await new ParakeetAsr({ modelDir: dir }).init();
+        modelReady = true;
+        log(`STT engine '${engId}' (Parakeet/sherpa-onnx) loaded`);
+        return;
+      } catch (e) {
+        log(`Parakeet engine '${engId}' failed, falling back to MedASR:`, e && e.message || e);
+      }
+    } else {
+      log(`'${engId}' model files not found in ${dir} -> MedASR`);
+      notify('Using MedASR', `“${eng.label}” needs its model files (see docs/PARAKEET.md). Falling back to MedASR.`);
+    }
+  }
+
+  // Default: MedASR (onnxruntime-node + CTC).
+  const modelPath = models.resolveModelPath();
+  const assetsDir = models.resolveAssetsDir();
+  log('modelPath =', modelPath, '| assetsDir =', assetsDir);
+  if (!modelPath) { notify('No model found', 'Convert the model first — see RUNBOOK.md.'); return; }
+  try {
+    asr = await new Asr({ modelPath, assetsDir }).init();
+    modelReady = true;
+    log('MedASR loaded OK. Press', settings.hotkey, 'to dictate.');
+  } catch (e) {
+    log('MedASR load FAILED:', e);
+    notify('Failed to load model', String(e && e.message || e));
+  }
 }
 
 // Provision (download-once + cache) the cleanup weights, then load the engine.

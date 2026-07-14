@@ -51,6 +51,13 @@ function modelsDir() {
   return d;
 }
 
+// Directory holding a transducer STT engine's sherpa-onnx files (Parakeet/Omi).
+function sttModelDir(engineId) {
+  const d = path.join(modelsDir(), engineId);
+  fs.mkdirSync(d, { recursive: true });
+  return d;
+}
+
 function localPathFor(id) {
   const entry = CATALOG[id];
   if (!entry) return null;
@@ -77,4 +84,4 @@ async function ensureModel(id, { hfToken, onProgress } = {}) {
   return dest;
 }
 
-module.exports = { CATALOG, modelsDir, localPathFor, isInstalled, ensureModel };
+module.exports = { CATALOG, modelsDir, sttModelDir, localPathFor, isInstalled, ensureModel };

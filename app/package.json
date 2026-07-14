@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "onnxruntime-node": "^1.20.1",
-    "node-llama-cpp": "^3.7.0"
+    "node-llama-cpp": "^3.7.0",
+    "sherpa-onnx-node": "^1.10.39"
   },
   "devDependencies": {
     "electron": "^33.2.0",
@@ -33,7 +34,9 @@
     "asarUnpack": [
       "**/node_modules/onnxruntime-node/**",
       "**/node_modules/node-llama-cpp/**",
-      "**/node_modules/@node-llama-cpp/**"
+      "**/node_modules/@node-llama-cpp/**",
+      "**/node_modules/sherpa-onnx-node/**",
+      "**/node_modules/sherpa-onnx-*/**"
     ],
     "mac": {
       "category": "public.app-category.productivity",
