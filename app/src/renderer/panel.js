@@ -14,10 +14,42 @@ function fillSelect(sel, items, currentId, labelFn) {
 }
 
 async function init() {
-  const [settings, engines] = await Promise.all([
+  const [settings, engines, cmds] = await Promise.all([
     window.medasr.getSettings(),
     window.medasr.getEngines(),
+    window.medasr.getCommands().catch(() => []),
   ]);
+
+  // Tab switching
+  document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
+    document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + t.dataset.tab));
+  }));
+
+  // Built-in command reference list
+  (function renderCommands() {
+    const order = [['internal', 'Dictation control'], ['runApp', 'Open apps'], ['systemKey', 'System']];
+    const el = $('cmdList'); el.innerHTML = '';
+    for (const [type, title] of order) {
+      const rows = cmds.filter((c) => c.type === type);
+      if (!rows.length) continue;
+      const g = document.createElement('div'); g.className = 'cmdgroup';
+      const h = document.createElement('h4'); h.textContent = title; g.appendChild(h);
+      for (const c of rows) {
+        const row = document.createElement('div'); row.className = 'cmdrow';
+        const say = document.createElement('span'); say.className = 'say';
+        const b = document.createElement('b'); b.textContent = '“' + c.triggers[0] + '”'; say.appendChild(b);
+        if (c.triggers.length > 1) {
+          const alt = document.createElement('span'); alt.style.color = 'var(--muted)';
+          alt.textContent = '  / ' + c.triggers.slice(1).map((t) => '“' + t + '”').join(' / ');
+          say.appendChild(alt);
+        }
+        row.appendChild(say); g.appendChild(row);
+      }
+      el.appendChild(g);
+    }
+    if (!el.children.length) el.innerHTML = '<div class="item-sub" style="padding:10px 0">Command list unavailable.</div>';
+  })();
 
   fillSelect($('stt'), engines.stt, settings.sttEngine,
     (e) => e.label + (e.implemented ? '' : '  (needs setup)'));
@@ -37,6 +69,7 @@ async function init() {
   $('voiceNav').checked = settings.voiceNav !== false;
   $('voiceActions').checked = settings.voiceActions !== false;
   $('alwaysOnCommands').checked = settings.alwaysOnCommands !== false;
+  $('notifications').checked = !!settings.notifications;
   $('pacsCommand').value = settings.pacsCommand || '';
 
   // --- macro table (stored as "trigger = text" lines; \n for line breaks) ---
@@ -180,6 +213,7 @@ async function init() {
       alwaysOnCommands: $('alwaysOnCommands').checked,
       macros: window.__serializeMacros ? window.__serializeMacros() : (settings.macros || ''),
       pacsCommand: $('pacsCommand').value.trim(),
+      notifications: $('notifications').checked,
       hotkey: $('hotkey').value.trim() || 'Alt+Q',
       llmModelPath: $('modelPath').value.trim(),
       modelsDirOverride: $('modelsDir').value.trim(),

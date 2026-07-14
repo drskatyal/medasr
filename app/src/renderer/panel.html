@@ -4,197 +4,297 @@
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline';" />
   <style>
-    :root { color-scheme: light dark; }
-    body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
-      font-size: 14px; padding: 20px 22px; background: #f6f7f9; color: #1a1d23; }
-    @media (prefers-color-scheme: dark) { body { background: #1b1d22; color: #e8eaed; } }
-    h1 { font-size: 18px; margin: 0 0 4px; }
-    .muted { opacity: .6; font-size: 12px; margin: 0 0 18px; }
-    .row { margin: 0 0 16px; }
-    label { display: block; font-weight: 600; margin-bottom: 6px; }
-    .hint { font-weight: 400; opacity: .6; font-size: 12px; margin-top: 4px; }
-    select, input[type=text] { width: 100%; padding: 8px 10px; border-radius: 8px;
-      border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font-size: 14px; }
-    .check { display: flex; align-items: center; gap: 8px; }
-    .check input { width: auto; }
-    details { margin-top: 8px; } summary { cursor: pointer; opacity: .8; }
-    .actions { margin-top: 22px; display: flex; gap: 10px; align-items: center; }
-    button { padding: 9px 16px; border-radius: 8px; border: 0; font-size: 14px; font-weight: 600;
-      cursor: pointer; background: #2563eb; color: #fff; }
-    #saved { opacity: 0; color: #16a34a; font-weight: 600; transition: opacity .2s; }
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f6f9; --surface: #ffffff; --surface-2: #f0f2f6;
+      --text: #1a1d23; --muted: #6b7280; --border: #e3e6eb;
+      --accent: #2563eb; --accent-fg: #ffffff; --accent-weak: rgba(37,99,235,.10);
+      --success: #16a34a; --warn: #d97706; --danger: #dc2626;
+      --radius: 10px; --radius-sm: 7px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16181d; --surface: #1e2128; --surface-2: #23262e;
+        --text: #e8eaed; --muted: #9aa0aa; --border: #2c3038;
+        --accent: #3b82f6; --accent-weak: rgba(59,130,246,.16);
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13.5px;
+      background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; }
+
+    /* header */
+    header { padding: 16px 20px 10px; }
+    header h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+    header p { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+
+    /* tab bar */
+    .tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--border); }
+    .tab { appearance: none; border: 0; background: transparent; color: var(--muted); font: inherit;
+      font-weight: 600; font-size: 12.5px; padding: 9px 12px; cursor: pointer; border-bottom: 2px solid transparent;
+      margin-bottom: -1px; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* scrollable content */
+    main { flex: 1; overflow-y: auto; padding: 16px 20px 20px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* cards + rows */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 4px 14px; margin-bottom: 14px; }
+    .card > .item { padding: 11px 0; border-top: 1px solid var(--border); }
+    .card > .item:first-child { border-top: 0; }
+    .item-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .item-title { font-weight: 600; }
+    .item-sub { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+    .item-sub.warn { color: var(--warn); }
+
+    .section-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+      color: var(--muted); margin: 2px 2px 8px; }
+
+    label { font-weight: 600; }
+    .field { margin: 0 0 14px; }
+    .field > label { display: block; margin-bottom: 6px; }
+    .hint { font-weight: 400; color: var(--muted); font-size: 12px; margin-top: 5px; line-height: 1.45; }
+    select, input[type=text] { width: 100%; padding: 8px 10px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); background: var(--surface); color: inherit; font-size: 13.5px; }
+    select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent-weak); border-color: var(--accent); }
+
+    /* toggle rows */
+    .toggle { display: flex; align-items: flex-start; gap: 11px; padding: 10px 0; border-top: 1px solid var(--border); }
+    .toggle:first-child { border-top: 0; }
+    .toggle input { margin: 1px 0 0; width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+    .toggle .t-label { font-weight: 600; }
+    .toggle .t-sub { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+
+    /* buttons */
+    button.btn { padding: 7px 13px; border-radius: var(--radius-sm); border: 0; font-size: 12.5px; font-weight: 600;
+      cursor: pointer; background: var(--accent); color: var(--accent-fg); white-space: nowrap; }
+    button.btn:disabled { opacity: .5; cursor: default; }
+    button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+
+    /* progress bar */
+    .pbar { display: none; position: relative; height: 6px; border-radius: 4px; margin: 8px 0 2px;
+      background: var(--surface-2); overflow: hidden; }
+    .pbar.show, .pbar.indet { display: block; }
+    .pbar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 4px;
+      background: var(--accent); transition: width .3s ease; }
+    .pbar.indet i { width: 35%; animation: slide 1.1s ease-in-out infinite; }
+    .pbar em { position: absolute; right: 5px; top: -12px; font-size: 10px; font-style: normal;
+      color: var(--muted); font-weight: 600; }
+    .pbar.indet em { display: none; }
+    @keyframes slide { 0% { left: -35%; } 100% { left: 100%; } }
+
+    /* macro table */
+    #macroTable { width: 100%; border-collapse: collapse; }
+    #macroTable th { text-align: left; font-size: 11px; color: var(--muted); font-weight: 700; padding: 2px 6px 6px 0; }
+    #macroTable td { padding: 3px 6px 3px 0; vertical-align: top; }
+    #macroTable input, #macroTable textarea { width: 100%; padding: 6px 8px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--surface); color: inherit; font-size: 13px; }
+    #macroTable textarea { resize: vertical; min-height: 34px; font-family: inherit; line-height: 1.4; }
+    .mdel { background: transparent; color: var(--danger); font-size: 17px; padding: 4px 6px; line-height: 1;
+      border: 0; cursor: pointer; border-radius: 6px; }
+    .mdel:hover { background: var(--surface-2); }
+
+    /* commands reference */
+    .cmdgroup { margin-bottom: 12px; }
+    .cmdgroup h4 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 700; }
+    .cmdrow { display: flex; gap: 8px; padding: 4px 0; font-size: 12.5px; border-top: 1px solid var(--border); }
+    .cmdrow:first-of-type { border-top: 0; }
+    .cmdrow .say { flex: 1; }
+    .cmdrow .say b { font-weight: 600; }
+    .cmdrow .does { color: var(--muted); flex: none; }
+    kbd { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px;
+      padding: 0 5px; font: 600 11px ui-monospace, Menlo, Consolas, monospace; }
+
+    /* sliders */
+    input[type=range] { width: 100%; accent-color: var(--accent); }
+
+    /* footer */
+    footer { display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+      border-top: 1px solid var(--border); background: var(--surface); }
+    #saved { opacity: 0; color: var(--success); font-weight: 600; font-size: 12.5px; transition: opacity .2s; }
     #saved.show { opacity: 1; }
+    details summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+    code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
   </style>
 </head>
 <body>
-  <h1>FlowRad Open Source VR — Settings</h1>
-  <p class="muted">All processing is on-device. Cleaning is optional.</p>
+  <header>
+    <h1>FlowRad Open Source VR</h1>
+    <p>Private, on-device medical dictation · all processing stays local</p>
+  </header>
 
-  <div id="statusBox" style="background:rgba(128,128,128,.1); border-radius:10px; padding:14px; margin-bottom:18px; font-size:13px">
-    <div style="font-weight:700; margin-bottom:8px">Models</div>
-    <div class="mitem">
-      <div class="mrow"><span><b>Input (speech-to-text)</b><br><span id="stStt" class="muted">…</span></span>
-        <button id="btnDlStt" style="display:none">Download</button></div>
-      <div class="pbar" id="pbStt"><i></i><em>0%</em></div>
-    </div>
-    <div class="mitem">
-      <div class="mrow"><span><b>Cleaning</b><br><span id="stClean" class="muted">…</span></span>
-        <button id="btnDlClean" style="display:none">Download</button></div>
-      <div class="pbar" id="pbClean"><i></i><em>0%</em></div>
-    </div>
-    <div class="mitem">
-      <div class="mrow"><span><b>Real-time (VAD)</b><br><span id="stVad" class="muted">…</span></span>
-        <button id="btnDlVad" style="display:none">Download</button></div>
-      <div class="pbar" id="pbVad"><i></i><em>0%</em></div>
-    </div>
-    <div class="mitem">
-      <div class="mrow"><span><b>Always-on commands (Vosk)</b><br><span id="stCmd" class="muted">…</span></span>
-        <button id="btnDlCmd" style="display:none">Download</button></div>
-      <div class="pbar" id="pbCmd"><i></i><em>0%</em></div>
-    </div>
-  </div>
-  <style>
-    .mitem{border-top:1px solid rgba(128,128,128,.15)}
-    .mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0}
-    .mrow .muted{opacity:.75;font-size:12px}
-    .mrow button{white-space:nowrap}
-    .mrow button:disabled{opacity:.5;cursor:default}
-    /* download progress bar (hidden unless a download is in flight) */
-    .pbar{display:none;position:relative;height:8px;border-radius:5px;margin:0 0 8px;
-      background:rgba(128,128,128,.25);overflow:hidden}
-    .pbar.show{display:block}
-    .pbar.indet{display:block}
-    .pbar i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:5px;
-      background:#2563eb;transition:width .3s ease}
-    .pbar.indet i{width:35%;animation:slide 1.1s ease-in-out infinite}
-    .pbar em{position:absolute;right:6px;top:-1px;font-size:9px;font-style:normal;
-      line-height:10px;opacity:.7;font-weight:600}
-    .pbar.indet em{display:none}
-    @keyframes slide{0%{left:-35%}100%{left:100%}}
-  </style>
+  <nav class="tabs">
+    <button class="tab active" data-tab="models">Models</button>
+    <button class="tab" data-tab="dictation">Dictation</button>
+    <button class="tab" data-tab="commands">Commands &amp; Macros</button>
+    <button class="tab" data-tab="advanced">Advanced</button>
+  </nav>
 
-  <div class="row">
-    <label for="stt">Primary input (speech-to-text)</label>
-    <select id="stt"></select>
-    <div class="hint" id="sttHint"></div>
-  </div>
+  <main>
+    <!-- ===================== MODELS ===================== -->
+    <section class="panel active" id="tab-models">
+      <div class="section-label">Status</div>
+      <div class="card">
+        <div class="item">
+          <div class="item-head"><span class="item-title">Input · speech-to-text</span>
+            <button class="btn" id="btnDlStt" style="display:none">Set up</button></div>
+          <div class="item-sub" id="stStt">…</div>
+          <div class="pbar" id="pbStt"><i></i><em>0%</em></div>
+        </div>
+        <div class="item">
+          <div class="item-head"><span class="item-title">Cleaning · corrects &amp; formats</span>
+            <button class="btn" id="btnDlClean" style="display:none">Download</button></div>
+          <div class="item-sub" id="stClean">…</div>
+          <div class="pbar" id="pbClean"><i></i><em>0%</em></div>
+        </div>
+        <div class="item">
+          <div class="item-head"><span class="item-title">Real-time · voice activity (VAD)</span>
+            <button class="btn" id="btnDlVad" style="display:none">Download</button></div>
+          <div class="item-sub" id="stVad">…</div>
+          <div class="pbar" id="pbVad"><i></i><em>0%</em></div>
+        </div>
+        <div class="item">
+          <div class="item-head"><span class="item-title">Always-on commands · Vosk</span>
+            <button class="btn" id="btnDlCmd" style="display:none">Download</button></div>
+          <div class="item-sub" id="stCmd">…</div>
+          <div class="pbar" id="pbCmd"><i></i><em>0%</em></div>
+        </div>
+      </div>
 
-  <div class="row">
-    <label for="cleanup">Cleaning pipeline</label>
-    <select id="cleanup"></select>
-    <div class="hint" id="cleanupHint">Choose “Off” to minimise latency (raw transcript is typed instantly).</div>
-  </div>
+      <div class="section-label">Choose engines</div>
+      <div class="field">
+        <label for="stt">Primary input (speech-to-text)</label>
+        <select id="stt"></select>
+        <div class="hint" id="sttHint"></div>
+      </div>
+      <div class="field">
+        <label for="cleanup">Cleaning pipeline</label>
+        <select id="cleanup"></select>
+        <div class="hint">Choose “Off” for the fastest path (raw transcript typed instantly).</div>
+      </div>
+    </section>
 
-  <div class="row check">
-    <input type="checkbox" id="autoInject" />
-    <label for="autoInject" style="margin:0">Type into the focused app automatically</label>
-  </div>
+    <!-- ===================== DICTATION ===================== -->
+    <section class="panel" id="tab-dictation">
+      <div class="section-label">Behaviour</div>
+      <div class="card">
+        <div class="toggle"><input type="checkbox" id="autoInject">
+          <div><div class="t-label">Type into the focused app automatically</div></div></div>
+        <div class="toggle"><input type="checkbox" id="lockFocus">
+          <div><div class="t-label">Lock onto the target field</div>
+            <div class="t-sub">Keep typing into the report box even if you click into PACS.</div></div></div>
+        <div class="toggle"><input type="checkbox" id="voiceCommands">
+          <div><div class="t-label">Voice formatting</div>
+            <div class="t-sub">“period”, “comma”, “new paragraph”, “colon”, …</div></div></div>
+        <div class="toggle"><input type="checkbox" id="voiceNav">
+          <div><div class="t-label">Voice navigation</div>
+            <div class="t-sub">“go to liver”, “find …” — jumps the cursor via Find.</div></div></div>
+        <div class="toggle"><input type="checkbox" id="voiceActions">
+          <div><div class="t-label">Voice commands &amp; macros</div>
+            <div class="t-sub">“open chrome”, “show desktop”, “stop dictation”, and your templates.</div></div></div>
+        <div class="toggle"><input type="checkbox" id="alwaysOnCommands">
+          <div><div class="t-label">Always listen for commands</div>
+            <div class="t-sub">Hands-free “start/stop dictation” with no hotkey (tiny background recognizer keeps the mic warm).</div></div></div>
+      </div>
 
-  <div class="row check">
-    <input type="checkbox" id="lockFocus" />
-    <label for="lockFocus" style="margin:0">Lock onto the target field (keep typing there even if you click into PACS)</label>
-  </div>
+      <div class="section-label">Real-time mode</div>
+      <div class="card">
+        <div class="toggle"><input type="checkbox" id="realtimeMode">
+          <div><div class="t-label">Real-time (hands-free)</div>
+            <div class="t-sub">Pauses end each sentence and it types as you speak.</div></div></div>
+      </div>
+      <div id="vadBox" style="display:none">
+        <div class="field">
+          <label for="vadSilenceMs">Pause to end a sentence — <span id="vadSilenceVal"></span> ms</label>
+          <input type="range" id="vadSilenceMs" min="300" max="2000" step="50">
+        </div>
+        <div class="field">
+          <label for="vadProbThreshold">Voice sensitivity — <span id="vadThreshVal"></span></label>
+          <input type="range" id="vadProbThreshold" min="0.3" max="0.7" step="0.05">
+          <div class="hint">Lower picks up softer speech; higher ignores background noise.</div>
+        </div>
+        <div class="field">
+          <label for="vadMinSpeechMs">Ignore blips shorter than — <span id="vadMinVal"></span> ms</label>
+          <input type="range" id="vadMinSpeechMs" min="100" max="800" step="50">
+        </div>
+        <div class="card">
+          <div class="toggle"><input type="checkbox" id="realtimeReplace">
+            <div><div class="t-label">Correct &amp; replace when the session ends</div></div></div>
+        </div>
+      </div>
 
-  <div class="row check">
-    <input type="checkbox" id="voiceCommands" />
-    <label for="voiceCommands" style="margin:0">Voice formatting commands (“period”, “comma”, “new paragraph”, “colon”…)</label>
-  </div>
+      <div class="section-label">Hotkey</div>
+      <div class="field">
+        <input type="text" id="hotkey" placeholder="Alt+Q">
+        <div class="hint">e.g. <code>Alt+Q</code>, <code>Control+Shift+Space</code></div>
+      </div>
+    </section>
 
-  <div class="row check">
-    <input type="checkbox" id="voiceNav" />
-    <label for="voiceNav" style="margin:0">Voice navigation (“go to liver”, “find …”) — jumps the cursor via Find</label>
-  </div>
+    <!-- ===================== COMMANDS & MACROS ===================== -->
+    <section class="panel" id="tab-commands">
+      <div class="section-label">Your macros</div>
+      <div class="field">
+        <table id="macroTable">
+          <thead><tr><th style="width:34%">Trigger phrase</th><th>Types this…</th><th style="width:30px"></th></tr></thead>
+          <tbody id="macroBody"></tbody>
+        </table>
+        <button class="btn ghost" id="macroAdd" type="button">+ Add macro</button>
+        <div class="hint">Say the trigger alone (e.g. “normal chest”) to type its text. Shift+Enter for a line break.</div>
+      </div>
 
-  <div class="row check">
-    <input type="checkbox" id="voiceActions" />
-    <label for="voiceActions" style="margin:0">Voice commands &amp; macros (“open chrome”, “show desktop”, “stop dictation”, and your templates)</label>
-  </div>
+      <div class="section-label">“Open PACS” target</div>
+      <div class="field">
+        <input type="text" id="pacsCommand" placeholder="Windows: C:\Path\viewer.exe   ·   macOS: app name or /path">
+        <div class="hint">What the “open pacs” command launches. Leave blank if unused.</div>
+      </div>
 
-  <div class="row check">
-    <input type="checkbox" id="alwaysOnCommands" />
-    <label for="alwaysOnCommands" style="margin:0">Always listen for commands (hands-free “start/stop dictation”, no hotkey)</label>
-  </div>
-  <div class="hint" style="margin:-8px 0 16px">A tiny background recognizer (Vosk, ~40&nbsp;MB) keeps the mic warm so commands work even when
-    dictation is off. It never transcribes your report — only listens for the fixed command list.</div>
+      <div class="section-label">Built-in voice commands</div>
+      <div class="card" id="cmdList"><div class="item-sub">Loading…</div></div>
 
-  <div class="row">
-    <label>Macros — say the trigger to type the text</label>
-    <table id="macroTable">
-      <thead><tr><th style="width:34%">Trigger phrase</th><th>Types this…</th><th style="width:28px"></th></tr></thead>
-      <tbody id="macroBody"></tbody>
-    </table>
-    <button id="macroAdd" type="button" class="secondary">+ Add macro</button>
-    <div class="hint">Say the trigger alone (e.g. “normal chest”) to type its text. Shift+Enter for a line break in the text.</div>
-  </div>
-  <style>
-    #macroTable{width:100%;border-collapse:collapse;margin-bottom:8px}
-    #macroTable th{text-align:left;font-size:11px;opacity:.6;font-weight:600;padding:2px 6px 4px 0}
-    #macroTable td{padding:3px 6px 3px 0;vertical-align:top}
-    #macroTable input,#macroTable textarea{width:100%;padding:6px 8px;border-radius:6px;
-      border:1px solid rgba(128,128,128,.4);background:transparent;color:inherit;font-size:13px;box-sizing:border-box}
-    #macroTable textarea{resize:vertical;min-height:32px;font-family:inherit}
-    .mdel{background:transparent!important;color:#ef4444!important;font-size:18px!important;
-      padding:2px 6px!important;line-height:1;border:0;cursor:pointer}
-    button.secondary{background:transparent;color:#2563eb;border:1px solid rgba(37,99,235,.5);
-      padding:6px 12px;font-size:13px}
-  </style>
+      <div class="section-label">Voice formatting</div>
+      <div class="card">
+        <div style="padding:10px 0">
+          <div class="cmdrow"><span class="say"><b>“period”</b> / “full stop”</span><span class="does">.</span></div>
+          <div class="cmdrow"><span class="say"><b>“comma”</b></span><span class="does">,</span></div>
+          <div class="cmdrow"><span class="say"><b>“colon”</b> <span style="color:var(--muted)">(not the organ)</span></span><span class="does">:</span></div>
+          <div class="cmdrow"><span class="say"><b>“new line”</b> / “next line”</span><span class="does">↵</span></div>
+          <div class="cmdrow"><span class="say"><b>“new paragraph”</b></span><span class="does">↵↵</span></div>
+          <div class="cmdrow"><span class="say"><b>“open/close paren”</b>, “slash”, “hyphen”, “percent”…</span><span class="does">( ) / - %</span></div>
+        </div>
+      </div>
+    </section>
 
-  <div class="row">
-    <label for="pacsCommand">“Open PACS” target (optional)</label>
-    <input type="text" id="pacsCommand" placeholder="Windows: C:\\Path\\viewer.exe   ·   macOS: app name or /path" />
-    <div class="hint">What the “open pacs” command launches. Leave blank if unused.</div>
-  </div>
+    <!-- ===================== ADVANCED ===================== -->
+    <section class="panel" id="tab-advanced">
+      <div class="field">
+        <label for="modelsDir">Models folder</label>
+        <input type="text" id="modelsDir" placeholder="Default: app data folder">
+        <div class="hint">Point to a drive with free space (e.g. <code>D:\FlowRadModels</code>) if your C: drive is full.
+          <span id="modelsDirNow"></span></div>
+      </div>
+      <div class="field">
+        <label for="modelPath">Cleaning model file (optional override)</label>
+        <input type="text" id="modelPath" placeholder="Leave blank — auto-downloaded on first use">
+        <div class="hint">The cleaning model downloads automatically the first time it's enabled and is cached.
+          Only set this to use your own GGUF file.</div>
+      </div>
+      <div class="section-label">Notifications</div>
+      <div class="card">
+        <div class="toggle"><input type="checkbox" id="notifications">
+          <div><div class="t-label">Show OS pop-up notifications</div>
+            <div class="t-sub">Off by default — the mic orb (black/red/blue) is the quiet feedback.</div></div></div>
+      </div>
+    </section>
+  </main>
 
-  <div class="row check">
-    <input type="checkbox" id="realtimeMode" />
-    <label for="realtimeMode" style="margin:0">Real-time mode (hands-free — pauses end each sentence)</label>
-  </div>
-
-  <div id="vadBox" style="padding-left:10px; border-left:2px solid rgba(128,128,128,.25)">
-    <div class="row">
-      <label for="vadSilenceMs">Pause to end a sentence: <span id="vadSilenceVal"></span> ms</label>
-      <input type="range" id="vadSilenceMs" min="300" max="2000" step="50" style="width:100%" />
-    </div>
-    <div class="row">
-      <label for="vadProbThreshold">Voice sensitivity: <span id="vadThreshVal"></span></label>
-      <input type="range" id="vadProbThreshold" min="0.3" max="0.7" step="0.05" style="width:100%" />
-      <div class="hint">Lower = picks up softer speech; higher = ignores background noise.</div>
-    </div>
-    <div class="row">
-      <label for="vadMinSpeechMs">Ignore blips shorter than: <span id="vadMinVal"></span> ms</label>
-      <input type="range" id="vadMinSpeechMs" min="100" max="800" step="50" style="width:100%" />
-    </div>
-    <div class="row check">
-      <input type="checkbox" id="realtimeReplace" />
-      <label for="realtimeReplace" style="margin:0">Correct &amp; replace text when the session ends</label>
-    </div>
-  </div>
-
-  <div class="row">
-    <label for="hotkey">Hotkey</label>
-    <input type="text" id="hotkey" placeholder="Alt+Q" />
-    <div class="hint">e.g. Alt+Q, Control+Shift+Space</div>
-  </div>
-
-  <details>
-    <summary>Advanced</summary>
-    <div class="row" style="margin-top:12px">
-      <label for="modelsDir">Models folder (where downloads are stored)</label>
-      <input type="text" id="modelsDir" placeholder="Default: app data folder" />
-      <div class="hint">Point this to a drive with free space (e.g. <code>D:\FlowRadModels</code>) if your
-        C: drive is full. Leave blank to use the default. <span id="modelsDirNow"></span></div>
-    </div>
-    <div class="row">
-      <label for="modelPath">Cleanup model file (optional override)</label>
-      <input type="text" id="modelPath" placeholder="Leave blank — auto-downloaded &amp; cached on first use" />
-      <div class="hint">The cleaning model downloads automatically the first time you enable
-        cleaning (a few GB, once) and is cached. Only set this to use your own GGUF file.</div>
-    </div>
-  </details>
-
-  <div class="actions">
-    <button id="save">Save</button>
-    <span id="saved">Saved ✓ — restart to apply model changes</span>
-  </div>
+  <footer>
+    <button class="btn" id="save">Save</button>
+    <span id="saved">Saved ✓</span>
+  </footer>
 
   <script src="./panel.js"></script>
 </body>
