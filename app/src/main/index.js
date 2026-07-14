@@ -13,7 +13,8 @@ function log(...a) { console.log('[medasr]', ...a); }
 
 const { Asr } = require('./asr');
 const { ParakeetAsr } = require('./asr_parakeet');
-const { injectText, replaceText } = require('./inject');
+const { injectText, replaceText, setFocusLock } = require('./inject');
+const focus = require('./focus');
 const { LlmEngine } = require('./llm');
 const { cleanupTranscript } = require('./cleanup');
 const { SileroVad } = require('./vad');
@@ -29,6 +30,9 @@ let settingsWin = null;
 let llmState = 'off';  // 'off' | 'downloading' | 'loading' | 'ready'
 let llmPct = 0;
 let transcribing = false;  // re-entrancy guard so transcriptions can't overlap/loop
+let vadStatus = 'not loaded';  // 'not loaded'|'downloading'|'loading'|'ready'|'error: …'
+let sttActive = 'none';        // engine actually running
+let sttNote = '';              // e.g. fallback reason
 
 function cleaningStatus() {
   if (!settings.cleanupEnabled) return 'off';
@@ -83,11 +87,18 @@ function setPill(state, pct) { if (pill) pill.webContents.send('state', state, p
 // ---------- recording lifecycle ----------
 async function ensureRealtime() {
   if (!vad) {
-    setPill('downloading');
-    const modelPath = await provision.ensureVadModel({ onProgress: ({ pct }) => log('vad download', pct + '%') });
-    vad = await new SileroVad(modelPath).load();
-    setPill('idle');
-    log('Silero VAD loaded');
+    try {
+      vadStatus = 'downloading'; refreshTrayMenu();
+      const modelPath = await provision.ensureVadModel({ onProgress: ({ pct }) => { vadStatus = `downloading ${pct}%`; } });
+      vadStatus = 'loading'; refreshTrayMenu();
+      vad = await new SileroVad(modelPath).load();
+      vadStatus = 'ready'; refreshTrayMenu();
+      log('Silero VAD loaded');
+    } catch (e) {
+      vadStatus = 'error: ' + (e && e.message || e); refreshTrayMenu();
+      log('VAD load FAILED:', e && e.message || e);
+      throw e;
+    }
   }
   if (!rt) {
     rt = new RealtimeSession({
@@ -117,6 +128,7 @@ async function startRecording() {
     return;
   }
   recording = true;
+  if (settings.lockFocus) { try { await focus.captureTarget(); } catch (e) {} }  // lock the target field
   if (settings.realtimeMode) {
     try {
       await ensureRealtime();
@@ -218,6 +230,26 @@ ipcMain.on('move-widget', (_e, { dx, dy }) => {
 ipcMain.handle('get-engines', () => ({
   stt: engines.STT_ENGINES, cleanup: engines.CLEANUP_MODELS,
 }));
+
+// Live status for the settings window (so setup/errors are visible without pop-ups).
+ipcMain.handle('get-status', () => ({
+  sttSelected: settings.sttEngine,
+  sttActive,
+  sttNote,
+  modelReady,
+  cleaning: cleaningStatus(),
+  realtime: !!settings.realtimeMode,
+  vad: vadStatus,
+}));
+
+// "Set up / Download now" buttons in the settings window.
+ipcMain.handle('setup', async (_e, what) => {
+  try {
+    if (what === 'cleanup') { settings.cleanupEnabled = true; models.saveSettings(settings); await ensureCleanupLlm(); }
+    else if (what === 'vad') { await ensureRealtime(); }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+});
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_e, s) => {
   const wasCleanup = settings.cleanupEnabled;
@@ -225,9 +257,13 @@ ipcMain.handle('set-settings', (_e, s) => {
   settings = { ...settings, ...s };
   models.saveSettings(settings);
   registerHotkey();
+  setFocusLock(settings.lockFocus);
   refreshTrayMenu();
   // Reload the STT engine if the user switched it.
   if (settings.sttEngine !== prevStt) loadAsr();
+  // Pre-load VAD when real-time is turned on, so errors surface now (in the
+  // Status panel) rather than silently on the first hotkey press.
+  if (settings.realtimeMode && !vad) ensureRealtime().catch(() => {});
   // If the user just turned cleaning on, provision + load the model now.
   if (settings.cleanupEnabled && !llm) ensureCleanupLlm();
   if (!settings.cleanupEnabled && llm) { llm.stop(); llm = null; llmState = 'off'; refreshTrayMenu(); }
@@ -249,11 +285,12 @@ function registerHotkey() {
 
 // ---------- tray ----------
 function buildTray() {
-  const icon = nativeImage.createFromNamedImage
-    ? nativeImage.createEmpty()
-    : nativeImage.createEmpty();
+  const iconPath = path.join(__dirname, '..', '..', 'assets', 'tray.png');
+  let icon = nativeImage.createFromPath(iconPath);
+  if (icon.isEmpty()) icon = nativeImage.createEmpty();
+  else if (process.platform === 'darwin') icon = icon.resize({ width: 18, height: 18 });
   tray = new Tray(icon);
-  tray.setToolTip('MedASR Dictate');
+  tray.setToolTip('FlowRad Open Source VR');
   refreshTrayMenu();
 }
 
@@ -286,7 +323,7 @@ function notify(title, body) {
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); return; }
   settingsWin = new BrowserWindow({
-    width: 460, height: 640, title: 'MedASR Dictate — Settings', resizable: true,
+    width: 460, height: 640, title: 'FlowRad Open Source VR — Settings', resizable: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'index.js'),
       contextIsolation: true, nodeIntegration: false,
@@ -316,6 +353,7 @@ async function boot() {
   createPill();
   buildTray();
   registerHotkey();
+  setFocusLock(settings.lockFocus);
 
   await loadAsr();
   // Cleanup LLM: auto-download the selected model's weights on first use and
@@ -332,6 +370,7 @@ async function boot() {
 async function loadAsr() {
   modelReady = false;
   asr = null;
+  sttActive = 'none'; sttNote = '';
   const engId = settings.sttEngine || 'medasr';
   const eng = engines.sttEngine(engId);
 
@@ -340,31 +379,30 @@ async function loadAsr() {
     if (ParakeetAsr.isInstalled(dir)) {
       try {
         asr = await new ParakeetAsr({ modelDir: dir }).init();
-        modelReady = true;
+        modelReady = true; sttActive = engId; sttNote = 'running';
         log(`STT engine '${engId}' (Parakeet/sherpa-onnx) loaded`);
         return;
       } catch (e) {
+        sttNote = `failed to load (${e && e.message || e}) — using MedASR`;
         log(`Parakeet engine '${engId}' failed, falling back to MedASR:`, e && e.message || e);
       }
     } else {
+      sttNote = 'needs model files — click “Set up” (see docs/PARAKEET.md). Using MedASR.';
       log(`'${engId}' model files not found in ${dir} -> MedASR`);
-      notify('Using MedASR', `“${eng.label}” needs its model files (see docs/PARAKEET.md). Falling back to MedASR.`);
     }
   } else if (eng && eng.runtime === 'llama-audio') {
-    // Single-call audio LLMs (Gemma 4 audio / LFM2.5-Audio) need llama.cpp
-    // audio-input support, which is still maturing — not runtime-wired yet.
+    sttNote = 'not runnable yet (llama.cpp audio input still maturing). Using MedASR.';
     log(`'${engId}' (single-call audio LLM) not runtime-wired yet -> MedASR`);
-    notify('Using MedASR', `“${eng.label}” isn’t runnable yet (llama.cpp audio input). Falling back to MedASR.`);
   }
 
   // Default: MedASR (onnxruntime-node + CTC).
   const modelPath = models.resolveModelPath();
   const assetsDir = models.resolveAssetsDir();
   log('modelPath =', modelPath, '| assetsDir =', assetsDir);
-  if (!modelPath) { notify('No model found', 'Convert the model first — see RUNBOOK.md.'); return; }
+  if (!modelPath) { sttNote = 'MedASR model not found — see RUNBOOK.md'; notify('No model found', 'Convert the model first — see RUNBOOK.md.'); return; }
   try {
     asr = await new Asr({ modelPath, assetsDir }).init();
-    modelReady = true;
+    modelReady = true; sttActive = 'medasr'; if (!sttNote) sttNote = 'running';
     log('MedASR loaded OK. Press', settings.hotkey, 'to dictate.');
   } catch (e) {
     log('MedASR load FAILED:', e);

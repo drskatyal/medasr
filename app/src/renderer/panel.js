@@ -32,8 +32,31 @@ async function init() {
   sttHint();
 
   $('autoInject').checked = settings.autoInject !== false;
+  $('lockFocus').checked = settings.lockFocus !== false;
   $('hotkey').value = settings.hotkey || 'Alt+Q';
   $('modelPath').value = settings.llmModelPath || '';
+
+  // Live status panel + setup buttons (so setup/errors are visible, no pop-ups).
+  async function refreshStatus() {
+    let s;
+    try { s = await window.medasr.getStatus(); } catch (e) { return; }
+    $('stStt').textContent = s.modelReady
+      ? `${s.sttActive}${s.sttNote && s.sttNote !== 'running' ? ' — ' + s.sttNote : ' (running)'}`
+      : (s.sttNote || 'not loaded');
+    $('stClean').textContent = s.cleaning;
+    $('stVad').textContent = s.realtime ? s.vad : 'off';
+    // show setup buttons contextually
+    $('btnSetupStt').style.display = (s.sttNote && /needs|not runnable|failed/.test(s.sttNote)) ? 'inline-block' : 'none';
+    $('btnDlClean').style.display = (s.cleaning === 'off' || /error/.test(s.cleaning)) && $('cleanup').value !== 'off' ? 'inline-block' : 'none';
+    $('btnDlVad').style.display = (s.realtime && s.vad !== 'ready' && !/download|load/.test(s.vad)) ? 'inline-block' : 'none';
+  }
+  $('btnDlClean').addEventListener('click', async () => { $('btnDlClean').textContent = 'Downloading…'; await window.medasr.setup('cleanup'); });
+  $('btnDlVad').addEventListener('click', async () => { $('btnDlVad').textContent = 'Downloading…'; await window.medasr.setup('vad'); });
+  $('btnSetupStt').addEventListener('click', () => {
+    alert('This input model needs its files. See docs/PARAKEET.md in the repo for the one-time setup, then reopen Settings.');
+  });
+  refreshStatus();
+  setInterval(refreshStatus, 1500);
 
   // real-time / VAD controls
   $('realtimeMode').checked = !!settings.realtimeMode;
@@ -59,6 +82,7 @@ async function init() {
       cleanupModel: enabled ? sel : (settings.cleanupModel || 'lfm2.5-8b-a1b'),
       cleanupEnabled: enabled,
       autoInject: $('autoInject').checked,
+      lockFocus: $('lockFocus').checked,
       hotkey: $('hotkey').value.trim() || 'Alt+Q',
       llmModelPath: $('modelPath').value.trim(),
       realtimeMode: $('realtimeMode').checked,

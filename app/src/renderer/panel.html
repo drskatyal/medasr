@@ -26,8 +26,19 @@
   </style>
 </head>
 <body>
-  <h1>MedASR Dictate — Settings</h1>
+  <h1>FlowRad Open Source VR — Settings</h1>
   <p class="muted">All processing is on-device. Cleaning is optional.</p>
+
+  <div id="statusBox" style="background:rgba(128,128,128,.1); border-radius:10px; padding:12px 14px; margin-bottom:18px; font-size:13px; line-height:1.7">
+    <div><b>Speech-to-text:</b> <span id="stStt">…</span></div>
+    <div><b>Cleaning:</b> <span id="stClean">…</span></div>
+    <div><b>Real-time (VAD):</b> <span id="stVad">…</span></div>
+    <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
+      <button id="btnSetupStt" style="display:none">Set up input model</button>
+      <button id="btnDlClean" style="display:none">Download cleaning model</button>
+      <button id="btnDlVad" style="display:none">Download real-time model</button>
+    </div>
+  </div>
 
   <div class="row">
     <label for="stt">Primary input (speech-to-text)</label>
@@ -44,6 +55,11 @@
   <div class="row check">
     <input type="checkbox" id="autoInject" />
     <label for="autoInject" style="margin:0">Type into the focused app automatically</label>
+  </div>
+
+  <div class="row check">
+    <input type="checkbox" id="lockFocus" />
+    <label for="lockFocus" style="margin:0">Lock onto the target field (keep typing there even if you click into PACS)</label>
   </div>
 
   <div class="row check">

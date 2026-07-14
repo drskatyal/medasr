@@ -45,6 +45,7 @@ const DEFAULTS = {
   autoInject: true,   // type into focused app after transcribing
   playSounds: true,
   notifications: false,  // OS pop-up notifications — off by default (quiet app)
+  lockFocus: true,       // remember the target field at dictation start; type back into it
   // --- cleanup LLM (OFF by default for latency; when enabled, the weights
   //     auto-download once and cache — no manual setup) ---
   cleanupEnabled: false,       // run the local cleanup LLM on the transcript

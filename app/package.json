@@ -1,8 +1,8 @@
 {
-  "name": "medasr-dictate",
-  "productName": "MedASR Dictate",
+  "name": "flowrad-vr",
+  "productName": "FlowRad Open Source VR",
   "version": "0.1.0",
-  "description": "Local, private medical dictation. Push a hotkey, speak, and it types into any app. Powered by an on-device quantized MedASR model via onnxruntime-node.",
+  "description": "Local, private medical dictation (voice recognition). Push a hotkey, speak, and it types into any app. On-device MedASR + optional local cleanup LLM. FlowRad, open source.",
   "main": "src/main/index.js",
   "author": "",
   "license": "Apache-2.0",
@@ -27,8 +27,9 @@
     "electron-updater": "^6.3.9"
   },
   "build": {
-    "appId": "com.medasr.dictate",
-    "productName": "MedASR Dictate",
+    "appId": "com.flowrad.vr",
+    "productName": "FlowRad Open Source VR",
+    "icon": "build/icon.png",
     "files": ["src/**/*", "assets/**/*", "!**/*.md"],
     "extraResources": [
       { "from": "../models", "to": "models", "filter": ["*.onnx"] }

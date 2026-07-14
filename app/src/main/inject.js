@@ -13,6 +13,10 @@
 
 const { clipboard } = require('electron');
 const { execFile } = require('child_process');
+const focus = require('./focus');
+
+let focusLock = false;
+function setFocusLock(b) { focusLock = !!b; }
 
 function run(cmd, args) {
   return new Promise((resolve, reject) => {
@@ -51,6 +55,9 @@ async function pasteLinux() {
 }
 
 async function paste() {
+  // Bring the locked target field back to the foreground before pasting, so
+  // text lands in the original field even if focus moved (e.g. PACS).
+  if (focusLock) await focus.restoreTarget();
   if (process.platform === 'darwin') await pasteMac();
   else if (process.platform === 'win32') await pasteWin();
   else await pasteLinux();
@@ -116,4 +123,4 @@ async function replaceText(oldText, newText, graphemeLen) {
   });
 }
 
-module.exports = { injectText, replaceText };
+module.exports = { injectText, replaceText, setFocusLock };
