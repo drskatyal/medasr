@@ -35,52 +35,65 @@ function setState(state, pct) {
 }
 
 const TARGET_SR = 16000;
+const PREROLL_S = 0.8;   // audio kept before you press the key, so the start isn't clipped
+
 let audioCtx = null;
 let stream = null;
 let source = null;
 let processor = null;
-let collected = [];   // Float32Array chunks at the AudioContext's native rate
 let nativeSR = 48000;
+let warm = false;         // mic pipeline is alive and buffering
+let recording = false;
+let preRoll = [];         // rolling last ~PREROLL_S of audio (Float32Array chunks)
+let collected = [];       // chunks captured during the active recording
 
 const rlog = (m) => { try { window.medasr.log(m); } catch (e) {} };
 
-async function startCapture() {
-  collected = [];
+// Bring up the mic pipeline once and keep it warm (buffering a short pre-roll),
+// so there's no device-acquisition delay when recording starts.
+async function ensureWarm() {
+  if (warm) return true;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
   } catch (e) {
     rlog('getUserMedia FAILED: ' + (e && e.message || e));
-    throw e;
+    return false;
   }
   audioCtx = new AudioContext({ sampleRate: 48000 });
-  // A global hotkey isn't a DOM user-gesture, so the context can start
-  // suspended -> no samples flow. Force it to run.
   if (audioCtx.state === 'suspended') {
-    try { await audioCtx.resume(); rlog('audioCtx resumed'); }
-    catch (e) { rlog('audioCtx resume failed: ' + (e && e.message || e)); }
+    try { await audioCtx.resume(); } catch (e) { rlog('resume failed: ' + (e && e.message || e)); }
   }
   nativeSR = audioCtx.sampleRate;
-  rlog('mic capture started @ ' + nativeSR + ' Hz, state=' + audioCtx.state);
   source = audioCtx.createMediaStreamSource(stream);
-  // ScriptProcessor is deprecated but works everywhere without shipping a worklet file.
   processor = audioCtx.createScriptProcessor(4096, 1, 1);
-  let frames = 0;
+  const maxPre = PREROLL_S * nativeSR;
   processor.onaudioprocess = (e) => {
-    collected.push(new Float32Array(e.inputBuffer.getChannelData(0)));
-    frames++;
+    const data = new Float32Array(e.inputBuffer.getChannelData(0));
+    // maintain the rolling pre-roll buffer
+    preRoll.push(data);
+    let total = preRoll.reduce((n, c) => n + c.length, 0);
+    while (preRoll.length > 1 && total - preRoll[0].length >= maxPre) total -= preRoll.shift().length;
+    if (recording) collected.push(data);
   };
   source.connect(processor);
   processor.connect(audioCtx.destination);
-  setTimeout(() => rlog('capturing… buffers so far: ' + frames), 500);
+  warm = true;
+  rlog('mic warm @ ' + nativeSR + ' Hz, state=' + audioCtx.state);
+  return true;
+}
+
+async function startCapture() {
+  const ok = await ensureWarm();
+  if (!ok) throw new Error('mic unavailable');
+  collected = preRoll.slice();   // seed with the pre-roll so the start isn't cut
+  recording = true;
+  rlog('recording (with ' + PREROLL_S + 's pre-roll)');
 }
 
 function stopCapture() {
-  try { if (processor) processor.disconnect(); } catch (e) {}
-  try { if (source) source.disconnect(); } catch (e) {}
-  try { if (stream) stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
-  try { if (audioCtx) audioCtx.close(); } catch (e) {}
+  recording = false;             // keep the pipeline warm for next time
   const merged = mergeFloat32(collected);
   collected = [];
   return resampleTo16k(merged, nativeSR);
@@ -111,6 +124,9 @@ function resampleTo16k(input, srcSR) {
   }
   return out;
 }
+
+// Warm the mic pipeline at startup so the very first dictation isn't clipped.
+ensureWarm().catch(() => {});
 
 window.medasr.onState(setState);
 window.medasr.onRecord(async (msg) => {
