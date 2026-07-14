@@ -88,10 +88,11 @@ async function selectLeft(n) {
       `tell application "System Events" to repeat ${n} times` +
       ` key code 123 using shift down` + ` end repeat`]);
   } else if (process.platform === 'win32') {
-    // Select all n characters in ONE keystroke: "+{LEFT n}" = Shift + (Left ×n).
-    // (The old per-character loop was the visible char-by-char selection.)
+    // Select all n characters in ONE keystroke. The parenthesized form
+    // "+({LEFT n})" holds Shift across all n presses (more reliable than
+    // "+{LEFT n}"), so the selection is instant — no visible char-by-char sweep.
     const script = 'Add-Type -AssemblyName System.Windows.Forms; ' +
-      `[System.Windows.Forms.SendKeys]::SendWait("+{LEFT ${n}}")`;
+      `[System.Windows.Forms.SendKeys]::SendWait("+({LEFT ${n}})")`;
     await run('powershell', ['-NoProfile', '-Command', script]);
   } else {
     await run('xdotool', ['key', '--repeat', String(n), 'shift+Left']);
