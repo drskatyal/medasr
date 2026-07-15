@@ -7,8 +7,9 @@
 // user accepts (never a silent rewrite of the record).
 
 const SYSTEM_PROMPT = [
-  'You are a transcription editor for RADIOLOGY dictation. You fix speech-to-text',
-  'errors and format the report. You output ONLY the corrected report text.',
+  'You are a transcription editor for RADIOLOGY dictation. Your ONLY job is to fix',
+  'speech-to-text errors in the exact text you are given and return it. You are an',
+  'EDITOR, not an author. Think of it as spell-check + medical-term-check, nothing more.',
   '',
   'DO:',
   '- Correct misrecognized medical/radiology terms to the intended standard term when',
@@ -17,20 +18,28 @@ const SYSTEM_PROMPT = [
   '    "supra spin at us" -> "supraspinatus"',
   '    "coronal cruciate" -> "anterior cruciate"',
   '    "medial and iscus" -> "medial meniscus"',
-  '    "pvsift" / "pivsift" / "PVSIFT" -> "pivot shift"',
+  '    "pvsift" / "pivsift" / "PVSIFT" / "prevort shift" -> "pivot shift"',
   '    "plateu" -> "plateau"',
   '    "condial" -> "condyle"',
   '    "full thickness tare" -> "full-thickness tear"',
   '  Use standard radiology vocabulary and spelling. A garbled all-caps token is almost',
   '  always a misheard term — decode it, do not just re-case it.',
   '- Fix punctuation, capitalization, spacing, and obvious grammar.',
+  '- Keep the SAME sentences in the SAME order. Output plain running prose exactly as',
+  '  dictated, just corrected.',
   '',
-  'NEVER:',
+  'NEVER (these are hard rules — violating them makes the output unusable):',
+  '- Never reorganize the report. No headings, no section titles ("Findings:",',
+  '  "Impression:"), no bullet points, no lists, no tables.',
+  '- Never use Markdown or any formatting characters: no **bold**, no *italics*,',
+  '  no #, no "- " or "* " bullets. Plain text only.',
+  '- Never add, remove, infer, summarize, or restate findings, impressions, or',
+  '  diagnoses. Do NOT add an impression or conclusion. Do NOT add phrases like',
+  '  "there is evidence of" or "consistent with" that were not dictated.',
   '- Never change laterality (left/right), numbers, sizes/measurements, or negations',
   '  ("no", "without", "absent").',
-  '- Never add, remove, or infer findings, impressions, or diagnoses.',
-  '- Never output any preamble, explanation, quotes, markdown, delimiter markers,',
-  '  or a "Note:". Output ONLY the corrected report and nothing else.',
+  '- Never output any preamble, explanation, quotes, or a "Note:". Output ONLY the',
+  '  corrected report text and nothing else.',
 ].join('\n');
 
 // Strip any chain-of-thought that reasoning models (e.g. LFM2.5) emit.
@@ -52,7 +61,24 @@ function stripWrappers(s) {
   t = t.replace(/\n+\s*note\s*:\s*[\s\S]*$/i, '');           // trailing "Note: …"
   t = t.replace(/\s*[^\n]*transcript\s*>+\s*$/i, '');        // trailing  TRANSCRIPT>>>
   t = t.replace(/^[<>]{2,}\s*/, '').replace(/\s*[<>]{2,}\s*$/, '');   // stray >>> / <<<
+  t = stripMarkdown(t);
   return t.trim();
+}
+
+// SAFETY NET: some models (e.g. MedGemma) format the report into Markdown — bold
+// headings, bullet lists — despite instructions. Those literal *, **, # characters
+// would be typed straight into the PACS/EHR field. Strip formatting syntax while
+// preserving the words. This does NOT undo re-structuring (that's the prompt's job);
+// it just guarantees no markup reaches the field.
+function stripMarkdown(s) {
+  return String(s || '')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')          // ATX headings:  ### Findings
+    .replace(/^\s*[-*+]\s+/gm, '')               // bullet markers: "* ", "- ", "+ "
+    .replace(/\*\*([^*]+)\*\*/g, '$1')           // **bold**
+    .replace(/__([^_]+)__/g, '$1')               // __bold__
+    .replace(/\*([^*\n]+)\*/g, '$1')             // *italic*
+    .replace(/(^|\s)_([^_\n]+)_(?=\s|$)/g, '$1$2') // _italic_ (word-bounded, spares snake_case)
+    .replace(/`([^`]+)`/g, '$1');                // `code`
 }
 
 function log(...a) { console.log('[cleanup]', ...a); }
