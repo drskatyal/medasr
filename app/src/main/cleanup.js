@@ -56,6 +56,8 @@ function stripWrappers(s) {
   // delimiter/marker lines the model copies from the prompt
   t = t.replace(/^<+[^\n]*transcript[^\n]*>*\s*\n?/i, '');   // leading  <EDITED TRANSCRIPT / <<<TRANSCRIPT
   t = t.replace(/^\s*here(?:'s| is)\b[^\n]*:\s*\n+/i, '');   // "Here is the corrected report:"
+  t = t.replace(/^\s*output\s*:\s*/i, '');                   // echoed "Output:" label from the one-shot prompt
+  t = t.replace(/^\s*input\s*:\s*/i, '');                    // echoed "Input:" label
   // Remove the trailing "Note: …" FIRST (it sits after the stray >>>), then the
   // marker/bracket run that's now at the end.
   t = t.replace(/\n+\s*note\s*:\s*[\s\S]*$/i, '');           // trailing "Note: …"
@@ -91,16 +93,31 @@ function preview(s, n = 200) { s = String(s || ''); return s.length > n ? s.slic
 // honors a `/no_think` soft switch; disable thinking for those families.
 const THINKING_MODELS = /qwen3|lfm2\.5|lfm2_5|lfm25/i;
 
+// One-shot demonstration of the EXACT desired shape. This is the strongest lever
+// against MedGemma's "write a formatted report" reflex: instructions fight the
+// model's template prior weakly, but a concrete input→output example that stays as
+// plain running prose (no headings, no sections) gets copied. Note the wording:
+// we say "text", never "report"/"format" — those words trigger template mode.
+const EXAMPLE_IN = 'mri lt shoulder the supra spin at us tendon shows full thickness tare '
+  + 'moderate joint effusion no pvsift';
+const EXAMPLE_OUT = 'MRI left shoulder. The supraspinatus tendon shows a full-thickness tear. '
+  + 'Moderate joint effusion. No pivot shift.';
+
 async function cleanupTranscript(llm, rawText, { maxTokens } = {}) {
   if (!rawText || !rawText.trim()) return rawText;
   const isThinker = THINKING_MODELS.test((llm && llm.modelId) || '');
   const system = isThinker ? SYSTEM_PROMPT + '\n\n/no_think' : SYSTEM_PROMPT;
+  // Embed the one-shot inside the user turn (llm.chat collapses to one system +
+  // one user message, so a separate assistant example turn wouldn't survive).
+  const userContent =
+    (isThinker ? '/no_think\n' : '')
+    + 'Correct the speech-to-text errors in the text below and return only the corrected '
+    + 'text. Keep the same words and sentence order — do not reformat.\n\n'
+    + 'Example\nInput: ' + EXAMPLE_IN + '\nOutput: ' + EXAMPLE_OUT + '\n\n'
+    + 'Now correct this text:\nInput: ' + rawText + '\nOutput:';
   const messages = [
     { role: 'system', content: system },
-    // Keep the user turn minimal — extra scaffolding (delimiters) tempted the
-    // model to echo it into the report. `/no_think` also here so Qwen3 sees it
-    // regardless of how the chat template orders system vs. user turns.
-    { role: 'user', content: (isThinker ? '/no_think\n' : '') + 'Correct and format this radiology dictation:\n\n' + rawText },
+    { role: 'user', content: userContent },
   ];
   // Editor output is ~ input length. Budget generously so (a) a long report is
   // not truncated mid-sentence and (b) if a reasoning model still thinks, it has
