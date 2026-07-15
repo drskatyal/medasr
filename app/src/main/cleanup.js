@@ -47,6 +47,9 @@ function stripWrappers(s) {
   return t.trim();
 }
 
+function log(...a) { console.log('[cleanup]', ...a); }
+function preview(s, n = 200) { s = String(s || ''); return s.length > n ? s.slice(0, n) + `… (+${s.length - n} chars)` : s; }
+
 async function cleanupTranscript(llm, rawText, { maxTokens } = {}) {
   if (!rawText || !rawText.trim()) return rawText;
   const messages = [
@@ -60,12 +63,20 @@ async function cleanupTranscript(llm, rawText, { maxTokens } = {}) {
   const cap = maxTokens || Math.min(4096, Math.ceil((rawText.length / 3) * 1.4) + 256);
   const generated = await llm.chat(messages, { temperature: 0, maxTokens: cap });
   const out = stripWrappers(stripThinking(generated));
+  // Diagnostics: show what the model actually produced vs. what the gate decides.
+  log('raw model output:', preview(generated));
+  if (out !== generated.trim()) log('after strip:', preview(out));
   // MEDICAL SAFETY GATE: reject an edit that dropped or exploded the text
   // (truncation, hallucinated deletion, runaway generation) — keep the raw
   // transcript instead. The caller only replaces when cleaned != raw.
-  if (!out) return rawText;
+  if (!out) { log('gate: empty after strip -> keeping raw'); return rawText; }
   const ratio = out.length / rawText.length;
-  if (ratio < 0.6 || ratio > 2.2) return rawText;
+  if (ratio < 0.6 || ratio > 2.2) {
+    log(`gate: length ratio ${ratio.toFixed(2)} out of [0.6, 2.2] -> keeping raw (model ${ratio > 2.2 ? 'over-generated' : 'dropped text'})`);
+    return rawText;
+  }
+  if (out === rawText) log('note: model returned text identical to input (no corrections made)');
+  else log('accepted cleaned output (ratio', ratio.toFixed(2) + ')');
   return out;
 }
 
