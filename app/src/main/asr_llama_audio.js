@@ -72,21 +72,26 @@ class LlamaAudioAsr {
     if (!fs.existsSync(modelPath)) throw new Error('audio model GGUF not found — download it first');
     if (!fs.existsSync(mmprojPath)) throw new Error('audio mmproj not found — download it first');
     const args = ['-m', modelPath, '--mmproj', mmprojPath, '--host', '127.0.0.1', '--port', String(this.port), '-c', '4096'];
-    if (gpu !== 'off') args.push('-ngl', '99');   // offload to GPU (Vulkan on Intel Arc etc.)
+    // Let llama-server AUTO-FIT GPU layers to available memory. Forcing -ngl 99
+    // makes a model larger than the (i)GPU memory abort/OOM (e.g. 12B on an iGPU).
+    // Only force CPU when GPU is disabled.
+    if (gpu === 'off') args.push('-ngl', '0');
     // cwd = the binary's folder so Windows resolves its sibling DLLs (ggml-vulkan.dll, mtmd.dll, …).
     const cwd = require('path').dirname(serverBin);
     log('launching llama-server:', serverBin, args.join(' '));
+    this._exited = false;
     this.proc = spawn(serverBin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     this.proc.stdout.on('data', (b) => process.stdout.write('[llama-server] ' + b));
     this.proc.stderr.on('data', (b) => process.stdout.write('[llama-server] ' + b));
-    this.proc.on('exit', (code) => { console.log('[llama-server] exited', code); this.proc = null; });
-    await this._waitReady(90000);
+    this.proc.on('exit', (code) => { log('[llama-server] exited', code); this._exited = true; this.proc = null; });
+    await this._waitReady(120000);
     return this;
   }
 
   async _waitReady(timeoutMs) {
     const deadline = Date.now() + timeoutMs;   // note: Date.now allowed in main process
     while (Date.now() < deadline) {
+      if (this._exited) throw new Error('llama-server exited during startup (model likely too large for GPU/RAM — try E4B)');
       try { const h = await httpJson(this.port, '/health', null, 'GET'); if (h && (h.status === 'ok' || h.status === undefined)) return; }
       catch (e) { /* not up yet */ }
       await new Promise((r) => setTimeout(r, 500));
