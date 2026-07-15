@@ -672,7 +672,7 @@ async function ensureCleanupLlm() {
       }
     }
     llmState = 'loading'; refreshTrayMenu();
-    llm = await new LlmEngine({ modelPath, gpu: settings.gpuAccel }).load();
+    llm = await new LlmEngine({ modelPath, gpu: settings.gpuAccel, modelId: id }).load();
     llmState = 'ready'; refreshTrayMenu();
     log('cleanup LLM ready:', id);
   } catch (e) {

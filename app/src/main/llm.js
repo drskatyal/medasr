@@ -9,8 +9,9 @@
 function log(...a) { console.log('[llm]', ...a); }
 
 class LlmEngine {
-  constructor({ modelPath, ctxSize, gpu } = {}) {
+  constructor({ modelPath, ctxSize, gpu, modelId } = {}) {
     this.modelPath = modelPath;
+    this.modelId = modelId || '';     // catalog id (e.g. 'qwen3-1.7b') — lets callers adapt per model family
     this.ctxSize = ctxSize || 4096;   // enough for a dictation report; smaller = faster KV alloc
     this.gpu = gpu;                   // 'auto' (default) | 'vulkan' | 'cuda' | 'metal' | 'off'
     this._llama = null;

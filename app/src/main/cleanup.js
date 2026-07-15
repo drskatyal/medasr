@@ -50,17 +50,28 @@ function stripWrappers(s) {
 function log(...a) { console.log('[cleanup]', ...a); }
 function preview(s, n = 200) { s = String(s || ''); return s.length > n ? s.slice(0, n) + `… (+${s.length - n} chars)` : s; }
 
+// Reasoning models (Qwen3, LFM2.5) emit a <think> block before the answer. For a
+// mechanical "correct this text" task we do NOT want chain-of-thought: it burns
+// the token budget so the actual report never gets written (node-llama-cpp strips
+// the think block → empty answer → gate keeps raw → "cleaning did nothing"). Qwen3
+// honors a `/no_think` soft switch; disable thinking for those families.
+const THINKING_MODELS = /qwen3|lfm2\.5|lfm2_5|lfm25/i;
+
 async function cleanupTranscript(llm, rawText, { maxTokens } = {}) {
   if (!rawText || !rawText.trim()) return rawText;
+  const isThinker = THINKING_MODELS.test((llm && llm.modelId) || '');
+  const system = isThinker ? SYSTEM_PROMPT + '\n\n/no_think' : SYSTEM_PROMPT;
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: system },
     // Keep the user turn minimal — extra scaffolding (delimiters) tempted the
-    // model to echo it into the report.
-    { role: 'user', content: 'Correct and format this radiology dictation:\n\n' + rawText },
+    // model to echo it into the report. `/no_think` also here so Qwen3 sees it
+    // regardless of how the chat template orders system vs. user turns.
+    { role: 'user', content: (isThinker ? '/no_think\n' : '') + 'Correct and format this radiology dictation:\n\n' + rawText },
   ];
-  // Editor output is ~ input length; budget generously so a long report is not
-  // truncated mid-sentence (partial clinical text is worse than raw ASR).
-  const cap = maxTokens || Math.min(4096, Math.ceil((rawText.length / 3) * 1.4) + 256);
+  // Editor output is ~ input length. Budget generously so (a) a long report is
+  // not truncated mid-sentence and (b) if a reasoning model still thinks, it has
+  // room to finish thinking AND emit the report rather than returning empty.
+  const cap = maxTokens || Math.min(4096, Math.ceil((rawText.length / 3) * 1.4) + 768);
   const generated = await llm.chat(messages, { temperature: 0, maxTokens: cap });
   const out = stripWrappers(stripThinking(generated));
   // Diagnostics: show what the model actually produced vs. what the gate decides.
