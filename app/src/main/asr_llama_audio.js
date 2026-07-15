@@ -13,6 +13,7 @@
 const fs = require('fs');
 const http = require('http');
 const { spawn } = require('child_process');
+function log(...a) { console.log('[medasr]', ...a); }
 
 const SR = 16000;
 
@@ -70,10 +71,12 @@ class LlamaAudioAsr {
     if (!serverBin || !fs.existsSync(serverBin)) throw new Error('llama-server binary not found (set its path in Settings)');
     if (!fs.existsSync(modelPath)) throw new Error('audio model GGUF not found — download it first');
     if (!fs.existsSync(mmprojPath)) throw new Error('audio mmproj not found — download it first');
-    const args = ['-m', modelPath, '--mmproj', mmprojPath, '--host', '127.0.0.1', '--port', String(this.port),
-      '-c', '4096', '--no-webui'];
-    if (gpu !== 'off') args.push('-ngl', '99');   // offload to GPU (Vulkan on Arc etc.)
-    this.proc = spawn(serverBin, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const args = ['-m', modelPath, '--mmproj', mmprojPath, '--host', '127.0.0.1', '--port', String(this.port), '-c', '4096'];
+    if (gpu !== 'off') args.push('-ngl', '99');   // offload to GPU (Vulkan on Intel Arc etc.)
+    // cwd = the binary's folder so Windows resolves its sibling DLLs (ggml-vulkan.dll, mtmd.dll, …).
+    const cwd = require('path').dirname(serverBin);
+    log('launching llama-server:', serverBin, args.join(' '));
+    this.proc = spawn(serverBin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     this.proc.stdout.on('data', (b) => process.stdout.write('[llama-server] ' + b));
     this.proc.stderr.on('data', (b) => process.stdout.write('[llama-server] ' + b));
     this.proc.on('exit', (code) => { console.log('[llama-server] exited', code); this.proc = null; });
