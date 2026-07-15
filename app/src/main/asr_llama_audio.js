@@ -17,10 +17,10 @@ function log(...a) { console.log('[medasr]', ...a); }
 
 const SR = 16000;
 
-// The instruction the audio-LLM follows for each clip.
-const PROMPT = 'Transcribe this radiology dictation verbatim, then lightly format it '
-  + '(punctuation, capitalization, standard radiology spelling). Preserve laterality, '
-  + 'numbers, and negations exactly. Output only the report text.';
+// Crisp instruction — a verbose prompt made the model over-generate (550 tokens
+// for a 60-token report), which dominated the eval time. Keep it terse.
+const PROMPT = 'Transcribe this radiology dictation. Output ONLY the transcribed text with '
+  + 'punctuation and standard radiology spelling — no preamble, no notes, no repetition. Stop when done.';
 
 function pcmToWav(float32, sampleRate = SR) {
   const n = float32.length;
@@ -102,7 +102,7 @@ class LlamaAudioAsr {
         { type: 'text', text: PROMPT },
         { type: 'input_audio', input_audio: { data: b64, format: 'wav' } },
       ] }],
-      temperature: 0, max_tokens: 1024, stream: false,
+      temperature: 0, max_tokens: 320, stream: false,   // cap runaway generation (was a big chunk of the eval time)
     };
     const r = await httpJson(this.port, '/v1/chat/completions', body);
     const txt = r && r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content;
