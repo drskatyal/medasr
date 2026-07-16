@@ -424,7 +424,7 @@ ipcMain.handle('setup', async (_e, what, id) => {
   if (dl.id) return { ok: false, error: 'a download is already in progress' };  // one at a time
   try {
     if (what === 'cleanup') {
-      const mid = id || settings.cleanupModel || 'qwen3-0.6b';
+      const mid = id || settings.cleanupModel || 'qwen3-1.7b';
       settings.cleanupModel = mid; settings.cleanupEnabled = true; models.saveSettings(settings);
       await ensureCleanupLlm();     // downloads settings.cleanupModel if missing, then loads
     } else if (what === 'vad') { await ensureRealtime(); }
@@ -651,7 +651,7 @@ async function ensureCleanupLlm() {
   // re-trigger it, hammering the network and filling the disk with retries).
   if (llmState === 'downloading' || llmState === 'loading') { log('cleanup already in progress; ignoring'); return; }
   const id = settings.cleanupModel && settings.cleanupModel !== 'off'
-    ? settings.cleanupModel : 'lfm2.5-8b-a1b';
+    ? settings.cleanupModel : 'qwen3-1.7b';
   try {
     let modelPath = settings.llmModelPath;   // explicit override wins
     if (!modelPath || !require('fs').existsSync(modelPath)) {

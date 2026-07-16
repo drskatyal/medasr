@@ -58,7 +58,7 @@ const DEFAULTS = {
   // --- cleanup LLM (OFF by default for latency; when enabled, the weights
   //     auto-download once and cache — no manual setup) ---
   cleanupEnabled: false,       // run the local cleanup LLM on the transcript
-  cleanupModel: 'lfm2.5-8b-a1b', // default model (auto-downloaded on first enable)
+  cleanupModel: 'qwen3-1.7b',  // default model (fast, disciplined; downloads on first enable)
   llmModelPath: '',            // optional explicit GGUF override; else auto-provisioned
   modelsDirOverride: '',       // custom folder to store downloaded models (e.g. a drive with space)
   gpuAccel: 'auto',            // cleaning-model GPU offload: 'auto' (use GPU if available) | 'off' (force CPU)

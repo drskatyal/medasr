@@ -260,7 +260,7 @@ async function init() {
     const enabled = sel !== 'off';
     await window.medasr.setSettings({
       sttEngine,
-      cleanupModel: enabled ? sel : (settings.cleanupModel || 'qwen3-0.6b'),
+      cleanupModel: enabled ? sel : (settings.cleanupModel || 'qwen3-1.7b'),
       cleanupEnabled: enabled,
       autoInject: $('autoInject').checked,
       lockFocus: $('lockFocus').checked,

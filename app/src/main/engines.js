@@ -6,36 +6,29 @@
 // yet falls back to MedASR with a notification (see index.js). Adding them is a
 // download-a-file step (GGUF) or a one-time export — see docs/MODELS.md.
 
+// Curated shipping set. Dictation = MedASR (default, bundled/first-run) + one
+// experimental single-call audio-LLM. Everything else was trimmed for the public
+// release to keep the UI simple and the choices meaningful.
 const STT_ENGINES = [
   { id: 'medasr', label: 'MedASR — medical (default)', runtime: 'onnx', implemented: true,
-    note: 'On-device, medically tuned. Shipping.' },
-  { id: 'parakeet-medical', label: 'Parakeet TDT 0.6B — fast streaming (EN)', runtime: 'parakeet-tdt', implemented: true,
-    note: 'NVIDIA Parakeet-TDT via sherpa-onnx. One-click download (~650 MB). High accuracy, low latency.' },
-  { id: 'omi-med-stt', label: 'Omi Med STT — (uses Parakeet-TDT base)', runtime: 'parakeet-tdt', implemented: true,
-    note: 'Downloads the fast Parakeet-TDT base (~650 MB). One-click.' },
-  // Single-call audio-LLMs via a llama-server sidecar (transcribe + format in one
+    note: 'On-device, medically tuned, fast. Runs on any laptop (CPU). Recommended.' },
+  // Single-call audio-LLM via a llama-server sidecar (transcribe + format in one
   // model). EXPERIMENTAL: needs a llama-server binary set in Settings → Advanced.
-  { id: 'gemma4-e4b-audio', label: 'Gemma 4 E4B — audio, single-call (experimental)', runtime: 'llama-server-audio', implemented: true,
+  { id: 'gemma4-e4b-audio', label: 'Gemma 4 E4B — audio, single-call (experimental, slow)', runtime: 'llama-server-audio', implemented: true,
     audio: true, hf: 'ggml-org/gemma-4-E4B-it-GGUF',
-    note: 'Transcribes + formats in one call. ~4B — the audio-LLM that fits a laptop iGPU. Slower than MedASR, not streaming. Needs a llama-server binary.' },
-  { id: 'gemma4-12b-audio', label: 'Gemma 4 12B — audio, single-call (heavy)', runtime: 'llama-server-audio', implemented: true,
-    audio: true, hf: 'ggml-org/gemma-4-12B-it-GGUF',
-    note: 'Higher quality but much slower on an integrated GPU. Audio-capable. Needs the llama-server binary. (26B/31B have NO audio.)' },
+    note: 'Transcribes + formats in one call. ~4B. Much slower than MedASR (~30-45s), not streaming. Needs a llama-server binary. For tinkerers.' },
 ];
 
+// Curated cleaning set: Off + a fast default + a medical model + a general model.
+// Qwen3-1.7B is the default (fast, disciplined, Apache-2.0 so it can ship offline).
 const CLEANUP_MODELS = [
   { id: 'off', label: 'Off — fastest, raw transcript', gguf: null },
-  { id: 'lfm2.5-8b-a1b', label: 'LFM2.5-8B-A1B — recommended', gguf: 'LFM2.5-8B-A1B-Q4_K_M.gguf',
-    note: 'MoE 1.5B active; fast + strong instruction following.' },
-  { id: 'omi-sum-3b', label: 'Omi-Sum (sum-small) — clinical SOAP (MIT)', gguf: 'sum-small-Q4_K_M.gguf',
-    note: 'Phi-3-mini fine-tuned for medical dialogue → SOAP notes. MIT license.' },
-  { id: 'gemma4-e4b', label: 'Gemma 4 E4B — Apache 2.0', gguf: 'gemma-4-E4B-it-Q4_K_M.gguf' },
-  { id: 'qwen3-0.6b', label: 'Qwen3-0.6B — ultra-light (fastest, basic)', gguf: 'Qwen3-0.6B-Q4_K_M.gguf' },
-  { id: 'lfm2-1.2b', label: 'LFM2-1.2B — fast + strong (recommended balance)', gguf: 'LFM2-1.2B-Q4_K_M.gguf',
-    note: 'Liquid edge model — ~0.8 GB, much faster than the 8B, far better than 0.6B.' },
-  { id: 'qwen3-1.7b', label: 'Qwen3-1.7B — fast + accurate', gguf: 'Qwen3-1.7B-Q4_K_M.gguf',
-    note: '~1.1 GB. Great speed/quality trade-off for cleanup.' },
-  { id: 'medgemma-4b', label: 'MedGemma 1.5 4B — medical (gated)', gguf: 'medgemma-1.5-4b-it-Q4_K_M.gguf' },
+  { id: 'qwen3-1.7b', label: 'Qwen3-1.7B — fast (default)', gguf: 'Qwen3-1.7B-Q4_K_M.gguf',
+    note: '~1.1 GB. Fast (~1.5-2s) and stays in its lane. Apache-2.0 — ships with the app.' },
+  { id: 'medgemma-4b', label: 'MedGemma 4B — most accurate (medical)', gguf: 'medgemma-1.5-4b-it-Q4_K_M.gguf',
+    note: 'Best medical-term correction (~3s). Gated license — downloads on first use.' },
+  { id: 'gemma4-e4b', label: 'Gemma 4 E4B — general', gguf: 'gemma-4-E4B-it-Q4_K_M.gguf',
+    note: 'General-purpose editor. Gemma license — downloads on first use.' },
 ];
 
 function sttEngine(id) { return STT_ENGINES.find((e) => e.id === id); }
