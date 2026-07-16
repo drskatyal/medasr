@@ -65,7 +65,9 @@ async function init() {
   // ---- inline model lists: each model is a selectable row with its note, a
   // Download button, and its own progress. NOTHING here downloads on its own. ----
   const rowsStt = {}, rowsClean = {};
-  const sttInstallable = (it) => it.runtime === 'parakeet-tdt' || it.runtime === 'llama-server-audio';
+  // MedASR is downloadable too (gated ONNX via the user's HF token) — so it shows
+  // a "Set up" button on first run when the weights aren't present yet.
+  const sttInstallable = (it) => it.id === 'medasr' || it.runtime === 'parakeet-tdt' || it.runtime === 'llama-server-audio';
   function buildRow(container, it, group, { installable, isOff }) {
     const row = document.createElement('div'); row.className = 'mrow2';
     const radio = document.createElement('input'); radio.type = 'radio'; radio.name = group; radio.value = it.id;
@@ -83,6 +85,11 @@ async function init() {
       btn.addEventListener('click', async () => {
         btn.textContent = 'Starting…'; btn.disabled = true;
         radio.checked = true;
+        // MedASR needs the HF token + repo persisted before the gated download —
+        // save whatever is currently typed so the user doesn't have to hit Save first.
+        if (it.id === 'medasr') {
+          try { await window.medasr.setSettings({ hfToken: ($('hfToken').value || '').trim(), medasrRepo: ($('medasrRepo').value || '').trim() }); } catch (e) {}
+        }
         const r = await window.medasr.setup(group === 'sttSel' ? 'stt' : 'cleanup', it.id);
         if (r && r.ok === false) { badge.style.display = ''; badge.className = 'badge warn'; badge.textContent = (r.error || 'error').slice(0, 44); }
       });
@@ -165,6 +172,8 @@ async function init() {
   $('modelPath').value = settings.llmModelPath || '';
   $('modelsDir').value = settings.modelsDirOverride || '';
   $('llamaServerPath').value = settings.llamaServerPath || '';
+  $('hfToken').value = settings.hfToken || '';
+  $('medasrRepo').value = settings.medasrRepo || '';
 
   // Live status panel + setup buttons (so setup/errors are visible, no pop-ups).
   function btnState(btn, state, downloadingRe, readyRe) {
@@ -276,6 +285,8 @@ async function init() {
       llmModelPath: $('modelPath').value.trim(),
       modelsDirOverride: $('modelsDir').value.trim(),
       llamaServerPath: $('llamaServerPath').value.trim(),
+      hfToken: $('hfToken').value.trim(),
+      medasrRepo: $('medasrRepo').value.trim(),
       realtimeMode: $('realtimeMode').checked,
       realtimeReplace: $('realtimeReplace').checked,
       replaceWholeField: $('replaceWholeField').checked,

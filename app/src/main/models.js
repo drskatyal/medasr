@@ -61,6 +61,8 @@ const DEFAULTS = {
   cleanupModel: 'qwen3-1.7b',  // default model (fast, disciplined; downloads on first enable)
   llmModelPath: '',            // optional explicit GGUF override; else auto-provisioned
   modelsDirOverride: '',       // custom folder to store downloaded models (e.g. a drive with space)
+  hfToken: '',                 // Hugging Face token — authorizes downloads of gated weights (MedASR, MedGemma) under the user's own license acceptance
+  medasrRepo: 'drskatyal/medasr-onnx', // gated HF repo hosting the converted MedASR int8 ONNX (maintainer-controlled)
   gpuAccel: 'auto',            // cleaning-model GPU offload: 'auto' (use GPU if available) | 'off' (force CPU)
   llamaServerPath: '',         // path to a llama-server binary (for single-call audio STT engines)
   sttEngine: 'medasr',         // 'medasr' | 'gemma4-audio' (future) | ...

@@ -272,6 +272,19 @@
     <!-- ===================== ADVANCED ===================== -->
     <section class="panel" id="tab-advanced">
       <div class="field">
+        <label for="hfToken">Hugging Face token (for MedASR &amp; MedGemma)</label>
+        <input type="password" id="hfToken" placeholder="hf_… — paste your Hugging Face access token">
+        <div class="hint">MedASR and MedGemma are license-gated. Create a free token at
+          <code>huggingface.co/settings/tokens</code>, accept each model's license on its Hugging Face page,
+          then paste the token here. It's stored locally and only used to download the weights you choose.</div>
+      </div>
+      <div class="field">
+        <label for="medasrRepo">MedASR model repo</label>
+        <input type="text" id="medasrRepo" placeholder="e.g. drskatyal/medasr-onnx">
+        <div class="hint">Gated Hugging Face repo hosting the converted MedASR (int8 ONNX). Usually leave as the
+          default — change only if you host your own copy.</div>
+      </div>
+      <div class="field">
         <label for="modelsDir">Models folder</label>
         <input type="text" id="modelsDir" placeholder="Default: app data folder">
         <div class="hint">Point to a drive with free space (e.g. <code>D:\FlowRadModels</code>) if your C: drive is full.

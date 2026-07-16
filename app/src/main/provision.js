@@ -277,6 +277,39 @@ async function ensureAudioModel(id, repo, { onProgress, hfToken } = {}) {
   return p;
 }
 
+// ---- MedASR core ASR weights (gated HAI-DEF; converted int8 ONNX) ----
+// The inference engine (onnxruntime-node) ships with the app; only the converted
+// ONNX is fetched — from a GATED HF repo the maintainer controls, under the USER's
+// own HF acceptance (they accept the license on that repo, then their token
+// authorizes the download). This keeps the free app compliant: no open
+// redistribution of gated weights. The small text assets (vocab.json, feature
+// config) ship in the app bundle, so only the .onnx is downloaded.
+const MEDASR_FILE = 'medasr.int8.onnx';
+function medasrPath() { return path.join(modelsDir(), MEDASR_FILE); }
+function isMedasrInstalled() {
+  try { return fs.statSync(medasrPath()).size > 1e6; } catch (e) { return false; }
+}
+async function resolveMedasrFile(repo, hfToken) {
+  try {
+    const headers = hfToken ? { Authorization: `Bearer ${hfToken}` } : {};
+    const info = await httpsGetJson(`https://huggingface.co/api/models/${repo}`, headers);
+    const onnx = (info.siblings || []).map((s) => s.rfilename).filter((f) => /\.onnx$/i.test(f));
+    return onnx.find((f) => /int8/i.test(f)) || onnx.find((f) => /medasr/i.test(f)) || onnx[0] || MEDASR_FILE;
+  } catch (e) { return MEDASR_FILE; }
+}
+async function ensureMedasr(repo, { hfToken, onProgress } = {}) {
+  const dest = medasrPath();
+  if (isMedasrInstalled()) return dest;
+  if (!repo) throw new Error('MedASR repo not configured — set it in Settings → Advanced');
+  if (!hfToken) throw new Error('a Hugging Face token is required to download the gated MedASR weights');
+  const file = await resolveMedasrFile(repo, hfToken);
+  const url = `https://huggingface.co/${repo}/resolve/main/${encodeURIComponent(file)}`;
+  console.log(`[provision] medasr: downloading ${repo}/${file}`);
+  await downloadFile(url, dest, { headers: { Authorization: `Bearer ${hfToken}` }, onProgress });
+  if (!isMedasrInstalled()) throw new Error('MedASR download failed (file missing or too small)');
+  return dest;
+}
+
 function localPathFor(id) {
   const entry = CATALOG[id];
   if (!entry) return null;
@@ -311,4 +344,5 @@ module.exports = {
   ensureVoskModel, voskModelDir, isVoskInstalled,
   setModelsDir, defaultModelsDir, STT_CATALOG, ensureSttModel, isSttInstalled,
   ensureAudioModel, isAudioInstalled, audioPaths,
+  ensureMedasr, isMedasrInstalled, medasrPath,
 };

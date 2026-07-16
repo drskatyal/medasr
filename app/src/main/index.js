@@ -58,6 +58,11 @@ let settings = models.loadSettings();
 let recording = false;
 let modelReady = false;
 
+// Hugging Face token for gated weights (MedASR, MedGemma). Prefer the in-app
+// setting (non-technical users can't set env vars); fall back to the env var
+// for developers/CI.
+function hfToken() { return (settings.hfToken && settings.hfToken.trim()) || process.env.HF_TOKEN || ''; }
+
 // ---------- widget window (persistent mic orb, superwhisper-style) ----------
 // Window is larger than the orb so the glow + expanding ring never get clipped
 // (that clipping was the visible "border"). The extra area is transparent.
@@ -403,7 +408,13 @@ ipcMain.handle('get-status', () => {
   // its own size, status, and Download button) instead of a shared bar.
   const installed = {};
   try { for (const m of engines.CLEANUP_MODELS) if (m.id !== 'off') installed[m.id] = provision.isInstalled(m.id); } catch (e) {}
-  try { for (const en of engines.STT_ENGINES) installed[en.id] = en.runtime === 'llama-server-audio' ? provision.isAudioInstalled(en.id) : provision.isSttInstalled(en.id); } catch (e) {}
+  try {
+    for (const en of engines.STT_ENGINES) {
+      if (en.id === 'medasr') installed[en.id] = provision.isMedasrInstalled() || !!models.resolveModelPath();
+      else if (en.runtime === 'llama-server-audio') installed[en.id] = provision.isAudioInstalled(en.id);
+      else installed[en.id] = provision.isSttInstalled(en.id);
+    }
+  } catch (e) {}
   return {
     sttSelected: settings.sttEngine, sttActive, sttNote, modelReady,
     cleaning,
@@ -433,11 +444,13 @@ ipcMain.handle('setup', async (_e, what, id) => {
       const eid = id || settings.sttEngine;
       const engDef = engines.sttEngine(eid);
       const isAudio = engDef && engDef.runtime === 'llama-server-audio';
-      if (!isAudio && !provision.STT_CATALOG[eid]) return { ok: false, error: 'no download for this engine' };
+      const isMedasr = eid === 'medasr';
+      if (!isMedasr && !isAudio && !provision.STT_CATALOG[eid]) return { ok: false, error: 'no download for this engine' };
       settings.sttEngine = eid; models.saveSettings(settings);
       dl = { id: eid, pct: 0 }; sttDlStatus = 'downloading 0%';
       const onProgress = ({ pct }) => { dl = { id: eid, pct }; sttDlStatus = `downloading ${pct}%`; };
-      if (isAudio) await provision.ensureAudioModel(eid, engDef.hf, { hfToken: process.env.HF_TOKEN, onProgress });
+      if (isMedasr) await provision.ensureMedasr(settings.medasrRepo, { hfToken: hfToken(), onProgress });
+      else if (isAudio) await provision.ensureAudioModel(eid, engDef.hf, { hfToken: hfToken(), onProgress });
       else await provision.ensureSttModel(eid, { onProgress });
       dl = { id: null, pct: 0 };
       await loadAsr();               // switch to the freshly-downloaded engine
@@ -634,7 +647,11 @@ async function loadAsr() {
   const modelPath = models.resolveModelPath();
   const assetsDir = models.resolveAssetsDir();
   log('modelPath =', modelPath, '| assetsDir =', assetsDir);
-  if (!modelPath) { sttNote = 'MedASR model not found — see RUNBOOK.md'; notify('No model found', 'Convert the model first — see RUNBOOK.md.'); return; }
+  if (!modelPath) {
+    sttNote = 'MedASR not set up — open Settings → Models, add your Hugging Face token, and click “Set up”.';
+    notify('Set up MedASR', 'Open Settings → Models, paste your Hugging Face token, then click “Set up” to download MedASR.');
+    return;
+  }
   try {
     asr = await new Asr({ modelPath, assetsDir }).init();
     modelReady = true; sttActive = 'medasr'; if (!sttNote) sttNote = 'running';
@@ -660,7 +677,7 @@ async function ensureCleanupLlm() {
         llmState = 'downloading'; llmPct = 0; dl = { id, pct: 0 }; refreshTrayMenu();
         let lastPct = -1;
         modelPath = await provision.ensureModel(id, {
-          hfToken: process.env.HF_TOKEN,
+          hfToken: hfToken(),
           onProgress: ({ pct }) => {
             llmPct = pct; dl = { id, pct };
             if (pct !== lastPct && pct % 5 === 0) { lastPct = pct; log(`download ${id}: ${pct}%`); }
