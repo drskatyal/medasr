@@ -1,0 +1,66 @@
+{
+  "name": "flowrad-vr",
+  "productName": "FlowRad Open Source VR",
+  "version": "0.1.0",
+  "description": "Local, private medical dictation (voice recognition). Push a hotkey, speak, and it types into any app. On-device MedASR + optional local cleanup LLM. FlowRad, open source.",
+  "main": "src/main/index.js",
+  "author": "",
+  "license": "Apache-2.0",
+  "scripts": {
+    "start": "electron .",
+    "prepare:vosk": "node scripts/fetch-vosk.js",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux",
+    "publish": "electron-builder --publish always"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "onnxruntime-node": "^1.20.1"
+  },
+  "optionalDependencies": {
+    "node-llama-cpp": "^3.7.0",
+    "sherpa-onnx-node": "^1.10.39",
+    "vosk": "^0.3.39"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-updater": "^6.3.9"
+  },
+  "build": {
+    "appId": "com.flowrad.vr",
+    "productName": "FlowRad Open Source VR",
+    "icon": "build/icon.png",
+    "npmRebuild": true,
+    "buildDependenciesFromSource": false,
+    "files": ["src/**/*", "assets/**/*", "!**/*.md"],
+    "extraResources": [
+      { "from": "../models", "to": "models", "filter": ["*.onnx", "silero_vad.onnx", "vosk-model-small-en-us-0.15/**"] }
+    ],
+    "asarUnpack": [
+      "**/node_modules/onnxruntime-node/**",
+      "**/node_modules/node-llama-cpp/**",
+      "**/node_modules/@node-llama-cpp/**",
+      "**/node_modules/sherpa-onnx-node/**",
+      "**/node_modules/sherpa-onnx-*/**",
+      "**/node_modules/vosk/**"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"],
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "win": { "target": ["nsis"] },
+    "linux": { "target": ["AppImage"], "category": "Utility" },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "${env.MEDASR_UPDATE_URL}"
+      }
+    ]
+  }
+}
