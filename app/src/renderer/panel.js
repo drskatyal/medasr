@@ -57,6 +57,14 @@ function fillSelect(sel, items, currentId, labelFn) {
 }
 
 async function init() {
+  // Tabs work even when Electron IPC is not present (browser smoke test).
+  document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
+    document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + t.dataset.tab));
+  }));
+
+  if (!window.medasr) return;
+
   const [settings, engines, cmds, brand] = await Promise.all([
     window.medasr.getSettings(),
     window.medasr.getEngines(),
@@ -70,12 +78,6 @@ async function init() {
     if ($('aboutBy')) $('aboutBy').textContent = brand.AUTHOR_CREDIT || 'Developed by Dr. Sanyam Katyal';
     if ($('footerCredit')) $('footerCredit').textContent = brand.AUTHOR_CREDIT || 'Developed by Dr. Sanyam Katyal';
   }
-
-  // Tab switching
-  document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
-    document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + t.dataset.tab));
-  }));
 
   // Built-in command reference list
   (function renderCommands() {
