@@ -13,10 +13,9 @@ Anything that needs the actual model runs on your machine — see `RUNBOOK.md`.
 |-------|-------|-------|
 | 0 — Baseline | **Harness built** (`baseline/`) | WER math validated. Run locally, commit `baseline/results.json`. |
 | 1 — Quantization | **Scripts built** (`convert/quantize.py`) | Dynamic int8 (ship) + static QDQ (production) paths. |
-| 2 — ONNX conversion | **Scripts built** (`convert/export_onnx.py`) | Teacher + `--from` distilled checkpoint. |
-| 2b — Distill | **Scripts built** (`convert/distill.py`) | Smaller MedASR student; still attributed as MedASR. |
+| 2 — ONNX conversion | **Scripts built** (`convert/export_onnx.py`) | Full MedASR encoder + CTC head. |
 | 3 — Streaming tuning | **Harness built** (`streaming/stream_harness.py`) | Push-to-talk is the product default (bidirectional CTC). |
-| 4 — Electron app | **MedASR-only, bundled** (`app/`) | No user download. Mic-off cleanup = Qwen (default) or Gemma 4. |
+| 4 — Electron app | **MedASR-only, bundled** (`app/`) | Full int8 MedASR. Mic-off cleanup = Qwen (default) or Gemma 4. |
 | — Distribution | **Installer extraResources** | `bundle-weights.js` + first-run HAI-DEF/Gemma/Qwen accept. |
 | 5 — Open source | **Code Apache 2.0; weights HAI-DEF** | See `LICENSING_NOTES.md` + `ATTRIBUTION.md`. |
 

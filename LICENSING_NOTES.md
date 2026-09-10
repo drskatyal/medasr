@@ -29,7 +29,7 @@ converted weights the way it applies to your conversion code.
 
 ## What this installer does
 
-FlowRad **bundles** converted MedASR ONNX (and optional distill) plus Qwen/Gemma
+FlowRad **bundles** full MedASR int8 ONNX plus Qwen/Gemma GGUFs in the desktop
 GGUFs in the desktop installer so clinicians do not download weights. That is
 **redistribution of HAI-DEF model derivatives**. We:
 

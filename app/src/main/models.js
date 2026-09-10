@@ -1,9 +1,9 @@
 'use strict';
 // Resolves model + asset paths and a tiny JSON settings store.
 //
-// Weights are not committed to git (HAI-DEF). The installer bundles them via
-// extraResources (see app/scripts/bundle-weights.js). Prefer a distilled int8
-// graph when present. First launch still requires HAI-DEF license acceptance.
+// Weights are not committed to git (HAI-DEF). The installer bundles full
+// MedASR int8 via extraResources (app/scripts/bundle-weights.js). First launch
+// still requires HAI-DEF license acceptance.
 
 const fs = require('fs');
 const path = require('path');
@@ -24,8 +24,8 @@ function modelSearchDirs() {
 }
 
 function resolveModelPath() {
-  // Distilled student first (faster), then full int8, then fp32.
-  const names = ['medasr.distill.int8.onnx', 'medasr.int8.onnx', 'medasr.onnx'];
+  // Full MedASR only (int8, then fp32). No distilled student.
+  const names = ['medasr.int8.onnx', 'medasr.onnx'];
   const candidates = [];
   for (const d of modelSearchDirs()) for (const n of names) candidates.push(path.join(d, n));
   return firstExisting(candidates);

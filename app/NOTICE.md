@@ -12,13 +12,10 @@ automatic speech recognition model (`google/medasr`).
 - Hugging Face: https://huggingface.co/google/medasr
 - License: [Health AI Developer Foundations (HAI-DEF)](https://developers.google.com/health-ai-developer-foundations/terms)
 
-Converted / quantized / distilled ONNX files shipped in this installer are
-**model derivatives** of MedASR and remain under the HAI-DEF license. They are
-not Apache 2.0. You must accept HAI-DEF terms on first launch.
-
-A distilled graph, if present (`medasr.distill.int8.onnx`), is a smaller student
-trained to match MedASR teacher logits. It is still MedASR: same tokenizer,
-same CTC head family, same attribution.
+The quantized int8 ONNX shipped in this installer is a **model derivative** of
+MedASR and remains under the HAI-DEF license. It is not Apache 2.0. You must
+accept HAI-DEF terms on first launch. We ship the **full** MedASR graph, not a
+distilled student.
 
 ## Transcript cleanup (optional, after the mic stops)
 

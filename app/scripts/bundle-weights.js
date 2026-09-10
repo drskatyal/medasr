@@ -18,11 +18,6 @@ const TOKEN = process.env.HF_TOKEN || process.env.HUGGING_FACE_HUB_TOKEN || '';
 
 const FILES = [
   {
-    dest: 'medasr.distill.int8.onnx',
-    optional: true,
-    note: 'distilled MedASR (preferred). Produce with convert/distill.py',
-  },
-  {
     dest: 'medasr.int8.onnx',
     repo: process.env.MEDASR_ONNX_REPO || 'drskatyal/medasr-onnx',
     file: 'medasr.int8.onnx',
@@ -111,7 +106,6 @@ async function main() {
       if (item.required && !fs.existsSync(dest)) {
         console.warn('MedASR ONNX is required to ship. Convert locally:');
         console.warn('  python convert/export_onnx.py && python convert/quantize.py');
-        console.warn('  python convert/distill.py --train-jsonl ...  # then export+quantize distill');
       }
     }
   }

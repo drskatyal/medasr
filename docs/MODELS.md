@@ -6,14 +6,13 @@ Speech-to-text is **only** [Google MedASR](https://huggingface.co/google/medasr)
 Cleanup models run **after the microphone stops** (push-to-talk) or at the end
 of a real-time session. They see **text**, not audio.
 
-> Score ASR with `baseline/metrics.py` (Google’s `normalize()`). Distilled
-> MedASR must stay within ~1% absolute WER of the teacher on your audio.
+> Score ASR with `baseline/metrics.py` (Google’s `normalize()`).
 
 ## Speech-to-text
 
 | Model | Notes | License | In the installer |
 |-------|-------|---------|------------------|
-| **MedASR** | Healthcare CTC Conformer. Distilled int8 if `medasr.distill.int8.onnx` exists, else `medasr.int8.onnx`. | HAI-DEF | **Yes** |
+| **MedASR** | Full healthcare CTC Conformer, int8 ONNX (`medasr.int8.onnx`). Not distilled. | HAI-DEF | **Yes** |
 
 Attribution is required: see `/ATTRIBUTION.md` and `app/NOTICE.md`.
 
@@ -34,13 +33,8 @@ audio → MedASR (verbatim) → [Qwen or Gemma editor] → type into the focused
 The editor prompt is a transcription editor (temperature 0). It must not add
 clinical findings. The length-ratio gate in `cleanup.js` drops runaway rewrites.
 
-## Distillation
-
-`convert/distill.py` trains a smaller MedASR student on teacher logits (KL) plus
-CTC. Export and quantize like the teacher. The app loads the student first and
-still labels the engine **MedASR**.
-
 ## What we do not ship as transcription
 
-Vosk, Parakeet, Whisper, and Gemma-4-audio-ASR are **not** used to write the
-medical record. Vosk remains an optional always-on **command** listener only.
+Vosk, Parakeet, Whisper, Gemma-4-audio-ASR, and distilled MedASR students are
+**not** used to write the medical record. Vosk remains an optional always-on
+**command** listener only.

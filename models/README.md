@@ -4,7 +4,6 @@ Release installers copy this folder into the app (`electron-builder extraResourc
 
 | File | What |
 |------|------|
-| `medasr.distill.int8.onnx` | Distilled Google MedASR (preferred if present) |
 | `medasr.int8.onnx` | Full Google MedASR int8 |
 | `Qwen3-1.7B-Q4_K_M.gguf` | Mic-off cleanup (default) |
 | `gemma-4-E4B-it-Q4_K_M.gguf` | Mic-off cleanup (optional) |
@@ -14,7 +13,7 @@ Release installers copy this folder into the app (`electron-builder extraResourc
 Populate with:
 
 ```bash
-# after convert/distill + export + quantize (and/or full MedASR quantize)
+python convert/export_onnx.py && python convert/quantize.py
 HF_TOKEN=… node app/scripts/bundle-weights.js
 ```
 

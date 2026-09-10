@@ -3,7 +3,7 @@
 End users never run `npm` and **never download models**. The installer contains:
 
 - native engines (`onnxruntime-node`, `node-llama-cpp`)
-- **Google MedASR** ONNX (distilled int8 preferred, else int8) — HAI-DEF
+- **Google MedASR** full int8 ONNX (`medasr.int8.onnx`) — HAI-DEF
 - **Qwen3-1.7B** and **Gemma 4 E4B** GGUFs for mic-off cleanup
 - Silero VAD ONNX (pause detection only)
 
@@ -13,13 +13,11 @@ required; it is not a download.
 ## Build
 
 ```bash
-python convert/distill.py --train-jsonl data/train.jsonl --out models/medasr.distill.pt
-python convert/export_onnx.py --from models/medasr.distill.pt --out models/medasr.distill.onnx
-python convert/quantize.py --in models/medasr.distill.onnx --out models/medasr.distill.int8.onnx
+python convert/export_onnx.py --out models/medasr.onnx
+python convert/quantize.py --in models/medasr.onnx --out models/medasr.int8.onnx
 python convert/export_assets.py
-# also produce models/medasr.int8.onnx as fallback
 
-HF_TOKEN=… node app/scripts/bundle-weights.js   # Qwen + Gemma + Silero + NOTICE
+HF_TOKEN=… node app/scripts/bundle-weights.js   # MedASR + Qwen + Gemma + Silero
 cd app && npm install && npm test && npm run dist
 ```
 

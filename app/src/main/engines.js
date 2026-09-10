@@ -9,7 +9,7 @@ const STT_ENGINES = [
     runtime: 'onnx',
     implemented: true,
     bundled: true,
-    note: 'On-device Google MedASR (HAI-DEF). Ships in the installer — no download. Distilled int8 when present.',
+    note: 'On-device Google MedASR (HAI-DEF). Full int8 model ships in the installer — no download.',
   },
 ];
 
