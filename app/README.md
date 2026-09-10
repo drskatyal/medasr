@@ -1,8 +1,9 @@
-# MedASR Dictate (Electron)
+# FlowRad Dictate (Electron)
 
-Local, private, Wispr-Flow-style medical dictation: press a global hotkey,
-speak, and the transcript is typed into whatever app you're in. Inference runs
-fully on-device via `onnxruntime-node` — **no Python and no server at runtime**.
+Local, private, Wispr-Flow-style medical dictation: hold or toggle a global
+hotkey (or the orb buttons), speak, and the transcript is typed into whatever
+app you're in — and into a floating scratchpad. Inference runs fully on-device
+via `onnxruntime-node` — **no Python and no server at runtime**.
 
 ## Architecture
 
@@ -16,12 +17,12 @@ fully on-device via `onnxruntime-node` — **no Python and no server at runtime*
                           inject.js  ── clipboard + OS paste keystroke ──►  focused app
 ```
 
-- `src/main/index.js` — tray, global hotkey, IPC orchestration, auto-update
+- `src/main/index.js` — tray, hold/toggle hotkeys, scratchpad, IPC, auto-update
+- `src/renderer/*` — floating bar (Hold / orb / Toggle / Pad) + scratchpad + mic capture
 - `src/main/asr.js` — ONNX session, single-pass + chunk/stitch long-audio
 - `src/main/features.js` — pure-JS log-mel matching `LasrFeatureExtractor`
 - `src/main/decode.js` — greedy CTC matching `LasrTokenizer._decode`
 - `src/main/inject.js` — type-anywhere via clipboard + `osascript`/`SendKeys`/`xdotool`
-- `src/renderer/*` — floating status pill + mic capture
 
 ## Run (dev)
 

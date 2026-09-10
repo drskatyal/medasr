@@ -1,16 +1,16 @@
 {
-  "name": "flowrad-vr",
-  "productName": "FlowRad Open Source VR",
+  "name": "flowrad-dictate",
+  "productName": "FlowRad Dictate",
   "version": "0.1.0",
-  "description": "Local, private medical dictation. On-device Google MedASR; Qwen/Gemma cleanup when the mic stops. FlowRad, open source.",
+  "description": "Local, private medical dictation. On-device Google MedASR; Qwen/Gemma cleanup when the mic stops. Developed by Dr. Sanyam Katyal.",
   "main": "src/main/index.js",
-  "author": "",
+  "author": "Dr. Sanyam Katyal",
   "license": "Apache-2.0",
   "scripts": {
     "start": "electron .",
     "prepare:vosk": "node scripts/fetch-vosk.js",
     "prepare:weights": "node scripts/bundle-weights.js",
-    "test": "node --test src/main/runtime.test.js src/main/features.test.js",
+    "test": "node --test src/main/runtime.test.js src/main/features.test.js src/main/hotkeys.test.js",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
@@ -24,7 +24,8 @@
   "optionalDependencies": {
     "node-llama-cpp": "^3.7.0",
     "sherpa-onnx-node": "^1.10.39",
-    "vosk": "^0.3.39"
+    "vosk": "^0.3.39",
+    "uiohook-napi": "^1.5.4"
   },
   "devDependencies": {
     "electron": "^33.2.0",
@@ -33,7 +34,7 @@
   },
   "build": {
     "appId": "com.flowrad.vr",
-    "productName": "FlowRad Open Source VR",
+    "productName": "FlowRad Dictate",
     "icon": "build/icon.png",
     "npmRebuild": true,
     "buildDependenciesFromSource": false,
@@ -47,7 +48,8 @@
       "**/node_modules/@node-llama-cpp/**",
       "**/node_modules/sherpa-onnx-node/**",
       "**/node_modules/sherpa-onnx-*/**",
-      "**/node_modules/vosk/**"
+      "**/node_modules/vosk/**",
+      "**/node_modules/uiohook-napi/**"
     ],
     "mac": {
       "category": "public.app-category.productivity",

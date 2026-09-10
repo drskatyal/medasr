@@ -27,6 +27,8 @@
     header { padding: 16px 20px 10px; }
     header h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
     header p { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+    .wordmark { display: flex; align-items: baseline; gap: 8px; }
+    .wordmark em { font-style: normal; font-weight: 600; color: var(--accent); font-size: 12px; }
 
     /* tab bar */
     .tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--border); }
@@ -117,14 +119,20 @@
       border-top: 1px solid var(--border); background: var(--surface); }
     #saved { opacity: 0; color: var(--success); font-weight: 600; font-size: 12.5px; transition: opacity .2s; }
     #saved.show { opacity: 1; }
-    details summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+    .hk { display: flex; gap: 8px; align-items: center; }
+    .hk input { flex: 1; cursor: pointer; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .hk input.listening { border-color: var(--accent); background: var(--accent-weak); }
+    .about-credit { padding: 14px 0; }
+    .about-credit h2 { margin: 0 0 4px; font-size: 18px; }
+    .about-credit p { margin: 6px 0; color: var(--muted); line-height: 1.45; }
+    .about-credit .by { color: var(--text); font-weight: 600; margin-top: 14px; }
     code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
   </style>
 </head>
 <body>
   <header>
-    <h1>FlowRad Open Source VR</h1>
-    <p>On-device dictation · speech recognition by <b>Google MedASR</b> · cleanup on mic-off</p>
+    <div class="wordmark"><h1 id="appName">FlowRad Dictate</h1><em>on-device</em></div>
+    <p>Medical dictation · speech recognition by <b>Google MedASR</b> · cleanup on mic-off</p>
   </header>
 
   <nav class="tabs">
@@ -132,6 +140,7 @@
     <button class="tab" data-tab="dictation">Dictation</button>
     <button class="tab" data-tab="commands">Commands &amp; Macros</button>
     <button class="tab" data-tab="advanced">Advanced</button>
+    <button class="tab" data-tab="about">About</button>
   </nav>
 
   <main>
@@ -230,11 +239,34 @@
         </div>
       </div>
 
-      <div class="section-label">Hotkey</div>
-      <div class="field">
-        <input type="text" id="hotkey" placeholder="Alt+Q">
-        <div class="hint">e.g. <code>Alt+Q</code>, <code>Control+Shift+Space</code></div>
+      <div class="section-label">Scratchpad</div>
+      <div class="card">
+        <div class="toggle"><input type="checkbox" id="showScratchpad">
+          <div><div class="t-label">Show floating scratchpad</div>
+            <div class="t-sub">A notepad that collects transcripts. Edit, copy, or type into the focused app.</div></div></div>
       </div>
+
+      <div class="section-label">Hotkeys</div>
+      <div class="field">
+        <label for="holdHotkey">Hold to talk</label>
+        <div class="hk">
+          <input type="text" id="holdHotkey" placeholder="Alt+X" readonly>
+          <button class="btn ghost" type="button" id="holdHotkeyReset">Default</button>
+        </div>
+        <div class="hint">Click the box, then press the shortcut. Default <code>Alt+X</code>
+          (Windows Alt, Mac <b>Option+X</b>). Hold the keys to record; release to stop.</div>
+      </div>
+      <div class="field">
+        <label for="toggleHotkey">Toggle dictation</label>
+        <div class="hk">
+          <input type="text" id="toggleHotkey" placeholder="Alt+Z" readonly>
+          <button class="btn ghost" type="button" id="toggleHotkeyReset">Default</button>
+        </div>
+        <div class="hint">Click, then press the shortcut. Default <code>Alt+Z</code>
+          (Mac: Option+Z). Press once to start, again to stop.</div>
+      </div>
+      <div class="hint">The Mac <b>Fn / Globe</b> key cannot be bound by apps. For a function-key feel, capture
+        <code>F13</code>–<code>F19</code> (Keyboard Viewer, or a keyboard that exposes them).</div>
     </section>
 
     <!-- ===================== COMMANDS & MACROS ===================== -->
@@ -316,12 +348,25 @@
             <div class="t-sub">Off by default — the mic orb (black/red/blue) is the quiet feedback.</div></div></div>
       </div>
     </section>
+
+    <!-- ===================== ABOUT ===================== -->
+    <section class="panel" id="tab-about">
+      <div class="card">
+        <div class="about-credit">
+          <h2 id="aboutName">FlowRad Dictate</h2>
+          <p>Private, on-device medical dictation. Speech-to-text is Google MedASR (HAI-DEF). Optional cleanup
+            with Qwen or Gemma 4 runs locally when you release the mic.</p>
+          <p class="by" id="aboutBy">Developed by Dr. Sanyam Katyal</p>
+          <p>STT: Google MedASR · Cleanup: Qwen3-1.7B (default) / Gemma 4 E4B</p>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer>
     <button class="btn" id="save">Save</button>
     <span id="saved">Saved ✓</span>
-    <span class="hint" style="margin-left:auto">STT: Google MedASR (HAI-DEF)</span>
+    <span class="hint" style="margin-left:auto" id="footerCredit">Developed by Dr. Sanyam Katyal</span>
   </footer>
 
   <script src="./panel.js"></script>

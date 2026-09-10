@@ -50,7 +50,11 @@ function settingsPath() {
 }
 
 const DEFAULTS = {
-  hotkey: 'Alt+Q',    // simple two-key toggle
+  hotkey: 'Alt+Z',           // legacy alias of toggleHotkey
+  holdHotkey: 'Alt+X',       // press-and-hold (Windows Alt / macOS Option)
+  toggleHotkey: 'Alt+Z',     // tap to start/stop
+  showScratchpad: true,      // floating notepad that collects transcripts
+  scratchpadText: '',
   autoInject: true,   // type into focused app after transcribing
   playSounds: true,
   notifications: false,  // OS pop-up notifications — off by default (quiet app)
@@ -86,10 +90,11 @@ const DEFAULTS = {
 };
 
 function loadSettings() {
+  const { migrateHotkeys } = require('./hotkeys');
   try {
-    return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) };
+    return migrateHotkeys({ ...DEFAULTS, ...JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) });
   } catch (e) {
-    return { ...DEFAULTS };
+    return migrateHotkeys({ ...DEFAULTS });
   }
 }
 

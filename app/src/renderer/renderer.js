@@ -2,11 +2,24 @@
 // Renderer: mic capture + 16kHz mono resample, driven by main-process messages.
 
 const orb = document.getElementById('orb');
+const bar = document.getElementById('bar');
+const btnHold = document.getElementById('btnHold');
+const btnToggle = document.getElementById('btnToggle');
+const btnPad = document.getElementById('btnPad');
 
-// Drag the orb to move the widget; a click (no drag) toggles dictation.
+// Drag the chrome (not the buttons) to move the widget. Clicking the orb or
+// Toggle starts/stops dictation. Hold is press-and-hold.
 let dragFrom = null;
 let dragDist = 0;
-orb.addEventListener('mousedown', (e) => { dragFrom = { x: e.screenX, y: e.screenY }; dragDist = 0; });
+let dragging = false;
+bar.addEventListener('mousedown', (e) => {
+  if (e.target.closest('button') || e.target.closest('#orb')) return;
+  dragging = true;
+  dragFrom = { x: e.screenX, y: e.screenY }; dragDist = 0;
+});
+orb.addEventListener('mousedown', (e) => {
+  dragFrom = { x: e.screenX, y: e.screenY }; dragDist = 0; dragging = false;
+});
 window.addEventListener('mousemove', (e) => {
   if (!dragFrom) return;
   const dx = e.screenX - dragFrom.x;
@@ -15,18 +28,47 @@ window.addEventListener('mousemove', (e) => {
     dragDist += Math.abs(dx) + Math.abs(dy);
     try { window.medasr.moveBy(dx, dy); } catch (err) {}
     dragFrom = { x: e.screenX, y: e.screenY };
+    if (dragDist >= 5) dragging = true;
   }
 });
-window.addEventListener('mouseup', () => {
-  if (dragFrom && dragDist < 5) {
+window.addEventListener('mouseup', (e) => {
+  const fromHold = e.target && (e.target.id === 'btnHold' || (e.target.closest && e.target.closest('#btnHold')));
+  if (fromHold) { dragFrom = null; dragging = false; return; }
+  if (dragFrom && dragDist < 5 && !dragging) {
     // Flip the orb colour immediately (don't wait for the main-process round
     // trip) so the click feels instant; main confirms/corrects the state next.
     const goingToRec = !document.body.classList.contains('rec');
     setState(goingToRec ? 'recording' : 'idle');
-    try { window.medasr.toggle(); } catch (e) {}
+    try { window.medasr.toggle(); } catch (err) {}
   }
   dragFrom = null;
+  dragging = false;
 });
+
+btnToggle.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const goingToRec = !document.body.classList.contains('rec');
+  setState(goingToRec ? 'recording' : 'idle');
+  try { window.medasr.toggle(); } catch (err) {}
+});
+btnPad.addEventListener('click', (e) => {
+  e.stopPropagation();
+  try { window.medasr.showScratchpad(); } catch (err) {}
+});
+btnHold.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  btnHold.classList.add('armed');
+  try { btnHold.setPointerCapture(e.pointerId); } catch (err) {}
+  try { window.medasr.holdStart(); } catch (err) {}
+});
+function endHold() {
+  btnHold.classList.remove('armed');
+  try { window.medasr.holdStop(); } catch (err) {}
+}
+btnHold.addEventListener('pointerup', endHold);
+btnHold.addEventListener('pointercancel', endHold);
+btnHold.addEventListener('lostpointercapture', endHold);
 
 // Orb states: idle (black), recording (red), and the processing states
 // transcribing / cleaning / downloading (tint + smooth arc + small caption).

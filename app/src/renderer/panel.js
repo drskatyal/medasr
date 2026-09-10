@@ -2,6 +2,49 @@
 
 const $ = (id) => document.getElementById(id);
 
+function acceleratorFromDomEvent(e) {
+  const skip = new Set(['Shift', 'Control', 'Alt', 'Meta', 'AltGraph', 'Dead']);
+  if (skip.has(e.key)) return null;
+  const parts = [];
+  if (e.ctrlKey) parts.push('Control');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  if (e.metaKey) parts.push('Command');
+  let key;
+  if (/^F\d{1,2}$/i.test(e.key)) key = e.key.toUpperCase();
+  else if (e.code && e.code.startsWith('Key') && e.code.length === 4) key = e.code.slice(3);
+  else if (e.code && e.code.startsWith('Digit') && e.code.length === 6) key = e.code.slice(5);
+  else if (e.code === 'Space' || e.key === ' ') key = 'Space';
+  else if (e.key && e.key.length === 1) key = e.key.toUpperCase();
+  else if (e.key) key = e.key;
+  if (!key) return null;
+  parts.push(key);
+  return parts.join('+');
+}
+
+function bindHotkeyField(input) {
+  input.addEventListener('focus', () => {
+    input.classList.add('listening');
+    input.dataset.prev = input.value;
+    input.value = '';
+    input.placeholder = 'Press a shortcut…';
+  });
+  input.addEventListener('blur', () => {
+    input.classList.remove('listening');
+    if (!input.value) input.value = input.dataset.prev || '';
+    input.placeholder = input.id === 'holdHotkey' ? 'Alt+X' : 'Alt+Z';
+  });
+  input.addEventListener('keydown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === 'Escape') { input.blur(); return; }
+    const accel = acceleratorFromDomEvent(e);
+    if (!accel) return;
+    input.value = accel;
+    input.blur();
+  });
+}
+
 function fillSelect(sel, items, currentId, labelFn) {
   sel.innerHTML = '';
   for (const it of items) {
@@ -14,11 +57,18 @@ function fillSelect(sel, items, currentId, labelFn) {
 }
 
 async function init() {
-  const [settings, engines, cmds] = await Promise.all([
+  const [settings, engines, cmds, brand] = await Promise.all([
     window.medasr.getSettings(),
     window.medasr.getEngines(),
     window.medasr.getCommands().catch(() => []),
+    window.medasr.getBranding().catch(() => null),
   ]);
+  if (brand) {
+    if ($('appName')) $('appName').textContent = brand.APP_NAME || 'FlowRad Dictate';
+    if ($('aboutName')) $('aboutName').textContent = brand.APP_NAME || 'FlowRad Dictate';
+    if ($('aboutBy')) $('aboutBy').textContent = brand.AUTHOR_CREDIT || 'Developed by Dr. Sanyam Katyal';
+    if ($('footerCredit')) $('footerCredit').textContent = brand.AUTHOR_CREDIT || 'Developed by Dr. Sanyam Katyal';
+  }
 
   // Tab switching
   document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
@@ -168,7 +218,13 @@ async function init() {
   $('macroAdd').addEventListener('click', () => addMacroRow());
   loadMacros(settings.macros);
   window.__serializeMacros = serializeMacros;
-  $('hotkey').value = settings.hotkey || 'Alt+Q';
+  $('holdHotkey').value = settings.holdHotkey || 'Alt+X';
+  $('toggleHotkey').value = settings.toggleHotkey || settings.hotkey || 'Alt+Z';
+  $('showScratchpad').checked = settings.showScratchpad !== false;
+  bindHotkeyField($('holdHotkey'));
+  bindHotkeyField($('toggleHotkey'));
+  $('holdHotkeyReset').addEventListener('click', () => { $('holdHotkey').value = 'Alt+X'; });
+  $('toggleHotkeyReset').addEventListener('click', () => { $('toggleHotkey').value = 'Alt+Z'; });
   $('modelPath').value = settings.llmModelPath || '';
   $('modelsDir').value = settings.modelsDirOverride || '';
   $('llamaServerPath').value = settings.llamaServerPath || '';
@@ -281,7 +337,10 @@ async function init() {
       pacsCommand: $('pacsCommand').value.trim(),
       notifications: $('notifications').checked,
       gpuAccel: $('gpuAccel').checked ? 'auto' : 'off',
-      hotkey: $('hotkey').value.trim() || 'Alt+Q',
+      holdHotkey: $('holdHotkey').value.trim() || 'Alt+X',
+      toggleHotkey: $('toggleHotkey').value.trim() || 'Alt+Z',
+      hotkey: $('toggleHotkey').value.trim() || 'Alt+Z',
+      showScratchpad: $('showScratchpad').checked,
       llmModelPath: $('modelPath').value.trim(),
       modelsDirOverride: $('modelsDir').value.trim(),
       llamaServerPath: $('llamaServerPath').value.trim(),

@@ -6,7 +6,7 @@
 
 const path = require('path');
 const {
-  app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, Notification, session, screen,
+  app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, Notification, session, screen, clipboard,
 } = require('electron');
 
 function log(...a) { console.log('[medasr]', ...a); }
@@ -25,6 +25,9 @@ const { VoskCommand } = require('./vosk_cmd');
 const provision = require('./provision');
 const engines = require('./engines');
 const models = require('./models');
+const branding = require('./branding');
+const hotkeys = require('./hotkeys');
+const { startHoldHook } = require('./hold_keys');
 
 let llm = null;      // cleanup LLM sidecar (only started when enabled + configured)
 let vad = null;      // Silero VAD (loaded on first real-time use)
@@ -51,6 +54,11 @@ function cleaningStatus() {
 
 let tray = null;
 let pill = null;         // small always-on-top status window (the "pill")
+let scratchpadWin = null;
+let holdHook = null;
+let holdActive = false;
+let quitting = false;
+let scratchSaveTimer = 0;
 let asr = null;
 let settings = models.loadSettings();
 let recording = false;
@@ -63,7 +71,7 @@ function acceptLicenses() {
   if (settings.licenseAccepted) return Promise.resolve(true);
   return new Promise((resolve) => {
     const win = new BrowserWindow({
-      width: 560, height: 660, title: 'MedASR licenses',
+      width: 560, height: 660, title: branding.APP_NAME + ' — licenses',
       resizable: true, minimizable: false, maximizable: false,
       webPreferences: {
         preload: path.join(__dirname, '..', 'preload', 'index.js'),
@@ -91,9 +99,9 @@ function acceptLicenses() {
 }
 
 // ---------- widget window (persistent mic orb, superwhisper-style) ----------
-// Window is larger than the orb so the glow + expanding ring never get clipped
-// (that clipping was the visible "border"). The extra area is transparent.
-const ORB_W = 120, ORB_H = 120;
+// Window is larger than the bar so the glow + expanding ring never get clipped.
+// The extra area is transparent.
+const ORB_W = 380, ORB_H = 96;
 
 function createPill() {
   pill = new BrowserWindow({
@@ -127,6 +135,70 @@ function createPill() {
 // State is just an orb colour change; the window stays put. `pct` is used by
 // the 'downloading' state to show progress in the tooltip.
 function setPill(state, pct) { if (pill) pill.webContents.send('state', state, pct); }
+
+const SCRATCH_W = 420, SCRATCH_H = 280;
+
+function persistScratchpadSoon() {
+  clearTimeout(scratchSaveTimer);
+  scratchSaveTimer = setTimeout(() => { try { models.saveSettings(settings); } catch (e) {} }, 400);
+}
+
+function appendScratchpad(text) {
+  if (!text) return;
+  const cur = settings.scratchpadText || '';
+  const sep = !cur ? '' : (/\s$/.test(cur) ? '' : (cur.endsWith('\n') ? '' : ' '));
+  settings.scratchpadText = cur + sep + text;
+  persistScratchpadSoon();
+  if (scratchpadWin && !scratchpadWin.isDestroyed()) {
+    scratchpadWin.webContents.send('scratchpad-set', settings.scratchpadText);
+  }
+}
+
+function showScratchpad(opts) {
+  settings.showScratchpad = true;
+  persistScratchpadSoon();
+  if (!scratchpadWin || scratchpadWin.isDestroyed()) createScratchpad();
+  else if (opts && opts.focus) { scratchpadWin.show(); scratchpadWin.focus(); }
+  else if (!scratchpadWin.isVisible()) scratchpadWin.showInactive();
+}
+
+function hideScratchpad() {
+  settings.showScratchpad = false;
+  persistScratchpadSoon();
+  if (scratchpadWin && !scratchpadWin.isDestroyed()) scratchpadWin.hide();
+}
+
+function createScratchpad() {
+  if (scratchpadWin && !scratchpadWin.isDestroyed()) return;
+  scratchpadWin = new BrowserWindow({
+    width: SCRATCH_W, height: SCRATCH_H, show: false, frame: false,
+    resizable: true, minimizable: false, maximizable: false,
+    alwaysOnTop: true, skipTaskbar: true, hasShadow: true, focusable: true,
+    backgroundColor: '#1e2128',
+    webPreferences: {
+      preload: path.join(__dirname, '..', 'preload', 'index.js'),
+      contextIsolation: true, nodeIntegration: false,
+    },
+  });
+  scratchpadWin.setMenuBarVisibility(false);
+  scratchpadWin.loadFile(path.join(__dirname, '..', 'renderer', 'scratchpad.html'));
+  scratchpadWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  scratchpadWin.once('ready-to-show', () => {
+    const wa = screen.getPrimaryDisplay().workArea;
+    scratchpadWin.setBounds({
+      x: Math.round(wa.x + wa.width - SCRATCH_W - 24),
+      y: Math.round(wa.y + wa.height - SCRATCH_H - ORB_H - 36),
+      width: SCRATCH_W, height: SCRATCH_H,
+    });
+    scratchpadWin.setAlwaysOnTop(true, 'floating');
+    if (settings.showScratchpad !== false) scratchpadWin.showInactive();
+  });
+  scratchpadWin.on('close', (e) => {
+    if (quitting) return;
+    e.preventDefault();
+    hideScratchpad();
+  });
+}
 
 // ---------- recording lifecycle ----------
 async function ensureRealtime() {
@@ -176,7 +248,10 @@ async function ensureRealtime() {
       },
       hooks: {
         setState: (s) => setPill(s === 'idle' ? 'idle' : 'recording'), // orb: red during session, black when idle
-        typeDelta: async (t) => { if (settings.autoInject) await injectText(t); },
+        typeDelta: async (t) => {
+          if (t) appendScratchpad(t);
+          if (settings.autoInject) await injectText(t);
+        },
         replaceAll: async (oldT, newT, glen) => {
           if (!settings.realtimeReplace) { require('electron').clipboard.writeText(newT); log('[rt] replace off -> clipboard'); return; }
           const r = await replaceText(oldT, newT, glen);
@@ -244,13 +319,18 @@ async function handleAlwaysOnCommand(text) {
     return;
   }
   const macro = actions.matchMacro(text, actions.parseMacros(settings.macros || ''));
-  if (macro != null && settings.autoInject) { log('always-on macro'); await injectText(macro); }
+  if (macro != null) {
+    log('always-on macro');
+    appendScratchpad(macro);
+    if (settings.autoInject) await injectText(macro);
+  }
 }
 
 async function startRecording() {
   log('hotkey -> start. modelReady =', modelReady, 'realtime =', !!settings.realtimeMode);
   if (recording || !modelReady) {
     if (!modelReady) notify('MedASR not ready', 'The installer should include google/medasr ONNX under models/. See ATTRIBUTION.md.');
+    holdActive = false;
     return;
   }
   recording = true;
@@ -288,11 +368,26 @@ async function stopRecording() {
 
 let lastToggle = 0;
 function toggleRecording() {
+  if (holdActive) { holdStop(); return; }
   const now = Date.now();
   if (now - lastToggle < 500) { log('toggle debounced (key repeat?)'); return; } // ignore rapid re-fires
   lastToggle = now;
-  log('hotkey fired');
+  log('toggle fired');
   recording ? stopRecording() : startRecording();
+}
+
+function holdStart() {
+  if (recording) return;
+  holdActive = true;
+  log('hold -> start');
+  startRecording();
+}
+
+function holdStop() {
+  if (!holdActive && !recording) return;
+  holdActive = false;
+  log('hold -> stop');
+  if (recording) stopRecording();
 }
 
 // Voice actions: spoken commands that DO something instead of being typed.
@@ -346,6 +441,7 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
     if (act && act.handled) { setPill('idle'); return { text: '' }; }
     if (act && act.text != null) {
       setPill('idle');
+      appendScratchpad(act.text);
       if (settings.autoInject) await injectText(act.text);
       return { text: act.text };
     }
@@ -375,6 +471,7 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
     if (settings.voiceCommands) text = applyCommands(text);   // "period", "new paragraph", …
 
     setPill('idle');
+    if (text) appendScratchpad(text);
     if (text && settings.autoInject) { log('injecting text…'); await injectText(text); log('inject done'); }
     return { text, ms };
   } catch (e) {
@@ -403,8 +500,26 @@ ipcMain.on('cmd-frame', (_e, arr) => {
 // Renderer forwards its console/errors here so they show in the terminal.
 ipcMain.on('renderer-log', (_e, msg) => log('[renderer]', msg));
 
-// Clicking the mic orb toggles dictation (same as the hotkey).
+// Clicking the mic orb or Toggle button starts/stops dictation.
 ipcMain.on('toggle-record', () => { log('orb clicked'); toggleRecording(); });
+ipcMain.on('hold-start', () => holdStart());
+ipcMain.on('hold-stop', () => holdStop());
+ipcMain.handle('get-branding', () => branding);
+ipcMain.on('scratchpad-show', () => showScratchpad({ focus: true }));
+ipcMain.on('scratchpad-hide', () => hideScratchpad());
+ipcMain.on('scratchpad-changed', (_e, text) => {
+  settings.scratchpadText = String(text || '');
+  persistScratchpadSoon();
+});
+ipcMain.handle('scratchpad-copy', (_e, text) => {
+  clipboard.writeText(String(text || ''));
+  return true;
+});
+ipcMain.handle('scratchpad-type', async (_e, text) => {
+  const t = String(text || '');
+  if (t) await injectText(t);
+  return true;
+});
 
 // Dragging the orb moves the widget window.
 ipcMain.on('move-widget', (_e, { dx, dy }) => {
@@ -497,14 +612,17 @@ ipcMain.handle('set-settings', (_e, s) => {
   const prevDir = settings.modelsDirOverride;
   const prevCleanup = settings.cleanupModel;
   const prevEnabled = settings.cleanupEnabled;
-  settings = { ...settings, ...s };
+  settings = hotkeys.migrateHotkeys({ ...settings, ...s });
   settings.sttEngine = 'medasr';
+  settings.hotkey = settings.toggleHotkey;
   models.saveSettings(settings);
   if (settings.modelsDirOverride !== prevDir) provision.setModelsDir(settings.modelsDirOverride);
   registerHotkey();
   setFocusLock(settings.lockFocus);
   setReplaceMode(settings.replaceWholeField ? 'all' : 'smart');
   refreshTrayMenu();
+  if (settings.showScratchpad === false) hideScratchpad();
+  else if (scratchpadWin && !scratchpadWin.isDestroyed() && !scratchpadWin.isVisible()) showScratchpad();
   if (settings.sttEngine !== prevStt) loadAsr();
   if (settings.realtimeMode && !vad) ensureRealtime().catch(() => {});
   if (settings.cleanupEnabled) {
@@ -517,16 +635,50 @@ ipcMain.handle('set-settings', (_e, s) => {
   return settings;
 });
 
-// ---------- hotkey ----------
+// ---------- hotkeys (toggle via globalShortcut; hold via uiohook keyup when available) ----------
 function registerHotkey() {
   globalShortcut.unregisterAll();
+  if (holdHook && holdHook.stop) { try { holdHook.stop(); } catch (e) {} }
+  holdHook = null;
+
+  const toggleAccel = settings.toggleHotkey || settings.hotkey || hotkeys.TOGGLE_DEFAULT;
+  const holdAccel = settings.holdHotkey || hotkeys.HOLD_DEFAULT;
+  const same = hotkeys.sameCombo(holdAccel, toggleAccel);
+
   try {
-    const ok = globalShortcut.register(settings.hotkey, toggleRecording);
-    log('hotkey registered:', settings.hotkey, '->', ok);
-    if (!ok) notify('Hotkey busy', `${settings.hotkey} is taken by another app. Change it in the tray menu.`);
+    const ok = globalShortcut.register(toggleAccel, toggleRecording);
+    log('toggle hotkey registered:', toggleAccel, '->', ok);
+    if (!ok) notify('Toggle hotkey busy', `${toggleAccel} is taken by another app. Change it in Settings.`);
   } catch (e) {
-    log('hotkey register error:', e);
-    notify('Hotkey error', `Could not register ${settings.hotkey}`);
+    log('toggle hotkey register error:', e);
+    notify('Hotkey error', `Could not register ${toggleAccel}`);
+  }
+
+  if (same) {
+    log('hold hotkey skipped — same combo as toggle; Hold button still press-and-hold');
+    return;
+  }
+
+  holdHook = startHoldHook({
+    getHoldAccel: () => settings.holdHotkey || hotkeys.HOLD_DEFAULT,
+    onDown: () => holdStart(),
+    onUp: () => holdStop(),
+    log,
+  });
+
+  if (!holdHook.ok) {
+    // No keyup: tap the hold shortcut to start, tap again to stop.
+    // The Hold *button* is still press-and-hold.
+    try {
+      const ok = globalShortcut.register(holdAccel, () => {
+        log('hold hotkey (tap fallback)');
+        toggleRecording();
+      });
+      log('hold hotkey fallback (no keyup):', holdAccel, '->', ok);
+      if (!ok) notify('Hold hotkey busy', `${holdAccel} is taken. Change it in Settings.`);
+    } catch (e) {
+      log('hold hotkey register error:', e);
+    }
   }
 }
 
@@ -537,15 +689,22 @@ function buildTray() {
   if (icon.isEmpty()) icon = nativeImage.createEmpty();
   else if (process.platform === 'darwin') icon = icon.resize({ width: 18, height: 18 });
   tray = new Tray(icon);
-  tray.setToolTip('FlowRad · MedASR (Google) on-device dictation');
+  tray.setToolTip(branding.APP_NAME + ' · on-device dictation');
   refreshTrayMenu();
 }
 
 function refreshTrayMenu() {
+  const holdLabel = hotkeys.formatAccelerator(settings.holdHotkey || hotkeys.HOLD_DEFAULT, process.platform);
+  const togLabel = hotkeys.formatAccelerator(settings.toggleHotkey || settings.hotkey || hotkeys.TOGGLE_DEFAULT, process.platform);
   const menu = Menu.buildFromTemplate([
     { label: modelReady ? 'MedASR ready' : 'MedASR not loaded', enabled: false },
-    { label: `Dictate  (${settings.hotkey})`, click: toggleRecording, enabled: modelReady },
+    { label: `Toggle dictation  (${togLabel})`, click: toggleRecording, enabled: modelReady },
+    { label: `Hold to talk  (${holdLabel})`, enabled: false },
     { type: 'separator' },
+    {
+      label: 'Scratchpad', type: 'checkbox', checked: settings.showScratchpad !== false,
+      click: (i) => { i.checked ? showScratchpad({ focus: true }) : hideScratchpad(); refreshTrayMenu(); },
+    },
     {
       label: 'Auto-type into focused app', type: 'checkbox', checked: settings.autoInject,
       click: (i) => { settings.autoInject = i.checked; models.saveSettings(settings); },
@@ -553,6 +712,7 @@ function refreshTrayMenu() {
     { label: `Cleaning: ${cleaningStatus()}`, enabled: false },
     { type: 'separator' },
     { label: 'Settings…', click: openSettings },
+    { label: branding.AUTHOR_CREDIT, enabled: false },
     { label: 'Quit', click: () => app.quit() },
   ]);
   tray.setContextMenu(menu);
@@ -570,7 +730,7 @@ function notify(title, body) {
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); return; }
   settingsWin = new BrowserWindow({
-    width: 460, height: 640, title: 'FlowRad Open Source VR — Settings', resizable: true,
+    width: 480, height: 680, title: branding.APP_NAME + ' — Settings', resizable: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'index.js'),
       contextIsolation: true, nodeIntegration: false,
@@ -603,6 +763,7 @@ async function boot() {
   }
 
   createPill();
+  createScratchpad();
   buildTray();
   registerHotkey();
   setFocusLock(settings.lockFocus);
@@ -637,7 +798,7 @@ async function loadAsr() {
     asr = await new Asr({ modelPath, assetsDir }).init();
     modelReady = true; sttActive = 'medasr';
     sttNote = `Google MedASR · ${path.basename(modelPath)} · ${asr.ep || 'cpu'}`;
-    log('MedASR loaded OK (', sttNote, '). Press', settings.hotkey, 'to dictate.');
+    log('MedASR loaded OK (', sttNote, '). Hold', settings.holdHotkey, 'or toggle', settings.toggleHotkey, 'to dictate.');
   } catch (e) {
     log('MedASR load FAILED:', e);
     notify('Failed to load MedASR', String(e && e.message || e));
@@ -683,7 +844,13 @@ async function ensureCleanupLlm() {
   }
 }
 
-app.on('will-quit', () => { if (llm) llm.stop(); if (voskCmd) { try { voskCmd.free(); } catch (e) {} } if (asr && asr.stop) { try { asr.stop(); } catch (e) {} } });
+app.on('will-quit', () => {
+  quitting = true;
+  if (holdHook && holdHook.stop) { try { holdHook.stop(); } catch (e) {} }
+  if (llm) llm.stop();
+  if (voskCmd) { try { voskCmd.free(); } catch (e) {} }
+  if (asr && asr.stop) { try { asr.stop(); } catch (e) {} }
+});
 
 if (process.platform === 'darwin' && app.dock) app.dock.hide(); // menubar app
 if (!app.requestSingleInstanceLock()) app.quit();
