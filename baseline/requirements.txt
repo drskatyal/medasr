@@ -1,0 +1,11 @@
+# Phase 0 baseline dependencies.
+#
+# transformers is pinned to the exact commit the MedASR model card requires --
+# the model uses custom Lasr* classes that only exist on this ref. Do not bump
+# it without re-checking the model card.
+git+https://github.com/huggingface/transformers.git@65dc261512cbdb1ee72b88ae5b222f2605aad8e5
+accelerate
+torch
+librosa
+jiwer
+huggingface_hub

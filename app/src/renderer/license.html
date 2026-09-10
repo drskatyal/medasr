@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline';" />
+  <title>Dictate by FlowRad</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13.5px;
+      padding: 22px 24px 18px; color: #e7fbf5; background: #07151a; }
+    h1 { font-size: 22px; margin: 0 0 2px; letter-spacing: -.03em; }
+    .by { color: #2ee6c5; font-weight: 650; font-size: 13px; margin: 0 0 14px; }
+    p, li { line-height: 1.45; }
+    .muted { color: #8eb5ad; font-size: 12.5px; }
+    .box { background: #0e2228; border: 1px solid rgba(46,230,197,.16); border-radius: 12px; padding: 12px 14px; margin: 12px 0; }
+    label { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0; }
+    footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+    button { padding: 8px 14px; border-radius: 8px; border: 0; font-weight: 600; cursor: pointer; }
+    #go { background: #2ee6c5; color: #06221c; }
+    #go:disabled { opacity: .28; background: #1a3d38; color: #6f8f88; cursor: default; }
+    #no { background: transparent; color: #8eb5ad; }
+    a { color: #2ee6c5; }
+    .mark { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .mark svg { width: 40px; height: 40px; }
+  </style>
+</head>
+<body>
+  <div class="mark">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="11" fill="#0e3d38"/>
+      <path fill="#2ee6c5" d="M12 7.2a2.2 2.2 0 0 0-2.2 2.2v3.1a2.2 2.2 0 1 0 4.4 0V9.4A2.2 2.2 0 0 0 12 7.2zm4.1 5.3a.7.7 0 1 0-1.4.1 2.7 2.7 0 0 1-5.4 0 .7.7 0 1 0-1.4-.1 4.1 4.1 0 0 0 3.4 3.9v1.4h-1.3a.7.7 0 0 0 0 1.4h3.4a.7.7 0 0 0 0-1.4h-1.3v-1.4a4.1 4.1 0 0 0 3.4-3.9z"/>
+    </svg>
+    <div>
+      <h1>Dictate</h1>
+      <p class="by">by FlowRad</p>
+    </div>
+  </div>
+  <p>This app ships the models on disk. Nothing is downloaded to start. You still need to accept the licenses that cover those weights.</p>
+  <p class="muted">Developed by Dr. Sanyam Katyal · speech recognition by Google MedASR</p>
+  <div class="box">
+    <p><b>Speech recognition is Google MedASR</b> (<code>google/medasr</code>), a healthcare ASR model from Health AI Developer Foundations. The int8 ONNX in this installer is a MedASR derivative.</p>
+    <p class="muted">HAI-DEF terms: <span>developers.google.com/health-ai-developer-foundations/terms</span></p>
+    <p class="muted">Model card: <span>developers.google.com/health-ai-developer-foundations/medasr/model-card</span></p>
+  </div>
+  <div class="box">
+    <p>When you <b>stop the microphone</b>, MedASR’s transcript can be passed through a local cleanup model (text only — not audio):</p>
+    <ul>
+      <li><b>Qwen3-1.7B</b> — default, Apache 2.0</li>
+      <li><b>Gemma 4 E4B</b> — optional, Gemma Terms of Use</li>
+    </ul>
+  </div>
+  <label>
+    <input type="checkbox" id="ok">
+    <span>I accept the MedASR / HAI-DEF license, the Gemma Terms of Use for Gemma 4, and Apache 2.0 for Qwen3. I will not use the models for prohibited purposes in those terms.</span>
+  </label>
+  <footer>
+    <button id="no">Quit</button>
+    <button id="go" disabled>Continue</button>
+  </footer>
+  <script>
+    const box = document.getElementById('ok');
+    const go = document.getElementById('go');
+    box.addEventListener('change', () => { go.disabled = !box.checked; });
+    go.addEventListener('click', () => window.medasr.acceptLicense());
+    document.getElementById('no').addEventListener('click', () => window.medasr.declineLicense());
+  </script>
+</body>
+</html>

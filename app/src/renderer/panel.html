@@ -1,0 +1,379 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline';" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07151a; --surface: #0e2228; --surface-2: #143038;
+      --text: #e7fbf5; --muted: #8eb5ad; --border: rgba(46,230,197,.14);
+      --accent: #2ee6c5; --accent-fg: #06221c; --accent-weak: rgba(46,230,197,.14);
+      --success: #2ee6c5; --warn: #e8b84a; --danger: #ff5a6a;
+      --radius: 12px; --radius-sm: 8px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13.5px;
+      background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; }
+
+    /* header */
+    header { padding: 16px 20px 10px; }
+    header h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+    header p { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+    .wordmark { display: flex; align-items: center; gap: 12px; }
+    .wordmark svg { width: 36px; height: 36px; flex: none; }
+    .wordmark .titles { display: flex; flex-direction: column; gap: 1px; }
+    .wordmark h1 { font-size: 20px; margin: 0; font-weight: 720; letter-spacing: -.03em; }
+    .wordmark em { font-style: normal; font-weight: 600; color: var(--accent); font-size: 12px; letter-spacing: .04em; }
+
+    /* tab bar */
+    .tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--border); }
+    .tab { appearance: none; border: 0; background: transparent; color: var(--muted); font: inherit;
+      font-weight: 600; font-size: 12.5px; padding: 9px 12px; cursor: pointer; border-bottom: 2px solid transparent;
+      margin-bottom: -1px; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* scrollable content */
+    main { flex: 1; overflow-y: auto; padding: 16px 20px 20px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* cards + rows */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 4px 14px; margin-bottom: 14px; }
+    .card > .item { padding: 11px 0; border-top: 1px solid var(--border); }
+    .card > .item:first-child { border-top: 0; }
+    .item-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .item-title { font-weight: 600; }
+    .item-sub { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+    .item-sub.warn { color: var(--warn); }
+
+    .section-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+      color: var(--muted); margin: 2px 2px 8px; }
+
+    label { font-weight: 600; }
+    .field { margin: 0 0 14px; }
+    .field > label { display: block; margin-bottom: 6px; }
+    .hint { font-weight: 400; color: var(--muted); font-size: 12px; margin-top: 5px; line-height: 1.45; }
+    select, input[type=text] { width: 100%; padding: 8px 10px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); background: var(--surface); color: inherit; font-size: 13.5px; }
+    select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent-weak); border-color: var(--accent); }
+
+    /* toggle rows */
+    .toggle { display: flex; align-items: flex-start; gap: 11px; padding: 10px 0; border-top: 1px solid var(--border); }
+    .toggle:first-child { border-top: 0; }
+    .toggle input { margin: 1px 0 0; width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+    .toggle .t-label { font-weight: 600; }
+    .toggle .t-sub { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+
+    /* buttons */
+    button.btn { padding: 7px 13px; border-radius: var(--radius-sm); border: 0; font-size: 12.5px; font-weight: 600;
+      cursor: pointer; background: var(--accent); color: var(--accent-fg); white-space: nowrap; }
+    button.btn:disabled { opacity: .5; cursor: default; }
+    button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+
+    /* progress bar */
+    .pbar { display: none; position: relative; height: 6px; border-radius: 4px; margin: 8px 0 2px;
+      background: var(--surface-2); overflow: hidden; }
+    .pbar.show, .pbar.indet { display: block; }
+    .pbar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 4px;
+      background: var(--accent); transition: width .3s ease; }
+    .pbar.indet i { width: 35%; animation: slide 1.1s ease-in-out infinite; }
+    .pbar em { position: absolute; right: 5px; top: -12px; font-size: 10px; font-style: normal;
+      color: var(--muted); font-weight: 600; }
+    .pbar.indet em { display: none; }
+    @keyframes slide { 0% { left: -35%; } 100% { left: 100%; } }
+
+    /* macro table */
+    #macroTable { width: 100%; border-collapse: collapse; }
+    #macroTable th { text-align: left; font-size: 11px; color: var(--muted); font-weight: 700; padding: 2px 6px 6px 0; }
+    #macroTable td { padding: 3px 6px 3px 0; vertical-align: top; }
+    #macroTable input, #macroTable textarea { width: 100%; padding: 6px 8px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--surface); color: inherit; font-size: 13px; }
+    #macroTable textarea { resize: vertical; min-height: 34px; font-family: inherit; line-height: 1.4; }
+    .mdel { background: transparent; color: var(--danger); font-size: 17px; padding: 4px 6px; line-height: 1;
+      border: 0; cursor: pointer; border-radius: 6px; }
+    .mdel:hover { background: var(--surface-2); }
+
+    /* commands reference */
+    .cmdgroup { margin-bottom: 12px; }
+    .cmdgroup h4 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 700; }
+    .cmdrow { display: flex; gap: 8px; padding: 4px 0; font-size: 12.5px; border-top: 1px solid var(--border); }
+    .cmdrow:first-of-type { border-top: 0; }
+    .cmdrow .say { flex: 1; }
+    .cmdrow .say b { font-weight: 600; }
+    .cmdrow .does { color: var(--muted); flex: none; }
+    kbd { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px;
+      padding: 0 5px; font: 600 11px ui-monospace, Menlo, Consolas, monospace; }
+
+    /* sliders */
+    input[type=range] { width: 100%; accent-color: var(--accent); }
+
+    /* footer */
+    footer { display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+      border-top: 1px solid var(--border); background: var(--surface); }
+    #saved { opacity: 0; color: var(--success); font-weight: 600; font-size: 12.5px; transition: opacity .2s; }
+    #saved.show { opacity: 1; }
+    .hk { display: flex; gap: 8px; align-items: center; }
+    .hk input { flex: 1; cursor: pointer; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .hk input.listening { border-color: var(--accent); background: var(--accent-weak); }
+    .about-credit { padding: 14px 0; }
+    .about-credit h2 { margin: 0 0 4px; font-size: 18px; }
+    .about-credit p { margin: 6px 0; color: var(--muted); line-height: 1.45; }
+    .about-credit .by { color: var(--text); font-weight: 600; margin-top: 14px; }
+    code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wordmark">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="11" fill="#0e3d38"/>
+        <path fill="#2ee6c5" d="M12 7.2a2.2 2.2 0 0 0-2.2 2.2v3.1a2.2 2.2 0 1 0 4.4 0V9.4A2.2 2.2 0 0 0 12 7.2zm4.1 5.3a.7.7 0 1 0-1.4.1 2.7 2.7 0 0 1-5.4 0 .7.7 0 1 0-1.4-.1 4.1 4.1 0 0 0 3.4 3.9v1.4h-1.3a.7.7 0 0 0 0 1.4h3.4a.7.7 0 0 0 0-1.4h-1.3v-1.4a4.1 4.1 0 0 0 3.4-3.9z"/>
+      </svg>
+      <div class="titles">
+        <h1 id="appName">Dictate</h1>
+        <em id="appBy">by FlowRad</em>
+      </div>
+    </div>
+    <p>On-device medical dictation · speech recognition by <b>Google MedASR</b></p>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="models">Models</button>
+    <button class="tab" data-tab="dictation">Dictation</button>
+    <button class="tab" data-tab="commands">Commands &amp; Macros</button>
+    <button class="tab" data-tab="advanced">Advanced</button>
+    <button class="tab" data-tab="about">About</button>
+  </nav>
+
+  <main>
+    <!-- ===================== MODELS ===================== -->
+    <section class="panel active" id="tab-models">
+      <div class="section-label">Speech-to-text — Google MedASR</div>
+      <div class="card" id="sttList"></div>
+      <div class="hint" style="margin:-6px 2px 16px">MedASR (<code>google/medasr</code>) is the only transcriber. Weights
+        ship in the installer (HAI-DEF). Full int8 MedASR — not a distilled student. See ATTRIBUTION.md.</div>
+
+      <div class="section-label">Cleaning — runs when you stop the mic</div>
+      <div class="card" id="cleanList"></div>
+      <div class="hint" style="margin:-6px 2px 16px">After MedASR transcribes, Qwen (default) or Gemma 4 edits the
+        <b>text</b> only. Both ship in the installer — no download. Turn <b>Off</b> for the raw transcript.</div>
+
+      <div class="section-label">Other</div>
+      <div class="card">
+        <div class="item">
+          <div class="item-head"><span class="item-title">Real-time · voice activity (VAD)</span>
+            <button class="btn" id="btnDlVad" style="display:none">Download</button></div>
+          <div class="item-sub" id="stVad">…</div>
+          <div class="pbar" id="pbVad"><i></i><em>0%</em></div>
+        </div>
+        <div class="item">
+          <div class="item-head"><span class="item-title">Always-on commands (optional, not MedASR)</span>
+            <button class="btn" id="btnDlCmd" style="display:none">Download</button></div>
+          <div class="item-sub" id="stCmd">…</div>
+          <div class="pbar" id="pbCmd"><i></i><em>0%</em></div>
+        </div>
+      </div>
+    </section>
+    <style>
+      .mrow2 { display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-top:1px solid var(--border); }
+      .mrow2:first-child { border-top:0; }
+      .mrow2 > input[type=radio] { margin:2px 0 0; width:16px; height:16px; accent-color:var(--accent); flex:none; }
+      .mrow2-body { flex:1; min-width:0; }
+      .mrow2-title { font-weight:600; display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+      .mrow2-sub { font-size:12px; color:var(--muted); margin-top:2px; line-height:1.4; }
+      .badge { font-size:10px; font-weight:700; padding:1px 6px; border-radius:20px; background:var(--accent-weak); color:var(--accent); }
+      .badge.ok { background:rgba(22,163,74,.14); color:var(--success); }
+      .badge.warn { background:rgba(217,119,6,.16); color:var(--warn); }
+      .mrow2 .btn { margin-top:1px; }
+    </style>
+
+    <!-- ===================== DICTATION ===================== -->
+    <section class="panel" id="tab-dictation">
+      <div class="section-label">Behaviour</div>
+      <div class="card">
+        <div class="toggle"><input type="checkbox" id="autoInject">
+          <div><div class="t-label">Type into the focused app automatically</div></div></div>
+        <div class="toggle"><input type="checkbox" id="lockFocus">
+          <div><div class="t-label">Lock onto the target field</div>
+            <div class="t-sub">Keep typing into the report box even if you click into PACS.</div></div></div>
+        <div class="toggle"><input type="checkbox" id="voiceCommands">
+          <div><div class="t-label">Voice formatting</div>
+            <div class="t-sub">“period”, “comma”, “new paragraph”, “colon”, …</div></div></div>
+        <div class="toggle"><input type="checkbox" id="voiceNav">
+          <div><div class="t-label">Voice navigation</div>
+            <div class="t-sub">“go to liver”, “find …” — jumps the cursor via Find.</div></div></div>
+        <div class="toggle"><input type="checkbox" id="voiceActions">
+          <div><div class="t-label">Voice commands &amp; macros</div>
+            <div class="t-sub">“open chrome”, “show desktop”, “stop dictation”, and your templates.</div></div></div>
+        <div class="toggle"><input type="checkbox" id="alwaysOnCommands">
+          <div><div class="t-label">Always listen for commands</div>
+            <div class="t-sub">Hands-free “start/stop dictation” only. Medical transcription is always MedASR.</div></div></div>
+      </div>
+
+      <div class="section-label">Real-time mode</div>
+      <div class="card">
+        <div class="toggle"><input type="checkbox" id="realtimeMode">
+          <div><div class="t-label">Real-time (hands-free)</div>
+            <div class="t-sub">Pauses end each sentence and it types as you speak.</div></div></div>
+      </div>
+      <div id="vadBox" style="display:none">
+        <div class="field">
+          <label for="vadSilenceMs">Pause to end a sentence — <span id="vadSilenceVal"></span> ms</label>
+          <input type="range" id="vadSilenceMs" min="300" max="2000" step="50">
+        </div>
+        <div class="field">
+          <label for="vadProbThreshold">Voice sensitivity — <span id="vadThreshVal"></span></label>
+          <input type="range" id="vadProbThreshold" min="0.3" max="0.7" step="0.05">
+          <div class="hint">Lower picks up softer speech; higher ignores background noise.</div>
+        </div>
+        <div class="field">
+          <label for="vadMinSpeechMs">Ignore blips shorter than — <span id="vadMinVal"></span> ms</label>
+          <input type="range" id="vadMinSpeechMs" min="100" max="800" step="50">
+        </div>
+        <div class="card">
+          <div class="toggle"><input type="checkbox" id="realtimeReplace">
+            <div><div class="t-label">Correct &amp; replace when the session ends</div></div></div>
+          <div class="toggle"><input type="checkbox" id="replaceWholeField">
+            <div><div class="t-label">Force whole-field replace</div>
+              <div class="t-sub">By default corrections replace <b>only your dictated text</b>, instantly — the app reads
+                the field to place the correction safely (no character sweep, existing text preserved). Enable this only to
+                skip that read-check (assumes the box holds nothing but your dictation).</div></div></div>
+        </div>
+      </div>
+
+      <div class="section-label">Scratchpad</div>
+      <div class="card">
+        <div class="toggle"><input type="checkbox" id="showScratchpad">
+          <div><div class="t-label">Show floating scratchpad</div>
+            <div class="t-sub">A notepad that collects transcripts. Edit, copy, or type into the focused app.</div></div></div>
+      </div>
+
+      <div class="section-label">Hotkeys</div>
+      <div class="field">
+        <label for="holdHotkey">Hold to talk</label>
+        <div class="hk">
+          <input type="text" id="holdHotkey" placeholder="Alt+X" readonly>
+          <button class="btn ghost" type="button" id="holdHotkeyReset">Default</button>
+        </div>
+        <div class="hint">Click the box, then press the shortcut. Default <code>Alt+X</code>
+          (Windows Alt, Mac <b>Option+X</b>). Hold the keys to record; release to stop.</div>
+      </div>
+      <div class="field">
+        <label for="toggleHotkey">Toggle dictation</label>
+        <div class="hk">
+          <input type="text" id="toggleHotkey" placeholder="Alt+Z" readonly>
+          <button class="btn ghost" type="button" id="toggleHotkeyReset">Default</button>
+        </div>
+        <div class="hint">Click, then press the shortcut. Default <code>Alt+Z</code>
+          (Mac: Option+Z). Press once to start, again to stop.</div>
+      </div>
+      <div class="hint">The Mac <b>Fn / Globe</b> key cannot be bound by apps. For a function-key feel, capture
+        <code>F13</code>–<code>F19</code> (Keyboard Viewer, or a keyboard that exposes them).</div>
+    </section>
+
+    <!-- ===================== COMMANDS & MACROS ===================== -->
+    <section class="panel" id="tab-commands">
+      <div class="section-label">Your macros</div>
+      <div class="field">
+        <table id="macroTable">
+          <thead><tr><th style="width:34%">Trigger phrase</th><th>Types this…</th><th style="width:30px"></th></tr></thead>
+          <tbody id="macroBody"></tbody>
+        </table>
+        <button class="btn ghost" id="macroAdd" type="button">+ Add macro</button>
+        <div class="hint">Say the trigger alone (e.g. “normal chest”) to type its text. Shift+Enter for a line break.</div>
+      </div>
+
+      <div class="section-label">“Open PACS” target</div>
+      <div class="field">
+        <input type="text" id="pacsCommand" placeholder="Windows: C:\Path\viewer.exe   ·   macOS: app name or /path">
+        <div class="hint">What the “open pacs” command launches. Leave blank if unused.</div>
+      </div>
+
+      <div class="section-label">Built-in voice commands</div>
+      <div class="card" id="cmdList"><div class="item-sub">Loading…</div></div>
+
+      <div class="section-label">Voice formatting</div>
+      <div class="card">
+        <div style="padding:10px 0">
+          <div class="cmdrow"><span class="say"><b>“period”</b> / “full stop”</span><span class="does">.</span></div>
+          <div class="cmdrow"><span class="say"><b>“comma”</b></span><span class="does">,</span></div>
+          <div class="cmdrow"><span class="say"><b>“colon”</b> <span style="color:var(--muted)">(not the organ)</span></span><span class="does">:</span></div>
+          <div class="cmdrow"><span class="say"><b>“new line”</b> / “next line”</span><span class="does">↵</span></div>
+          <div class="cmdrow"><span class="say"><b>“new paragraph”</b></span><span class="does">↵↵</span></div>
+          <div class="cmdrow"><span class="say"><b>“open/close paren”</b>, “slash”, “hyphen”, “percent”…</span><span class="does">( ) / - %</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== ADVANCED ===================== -->
+    <section class="panel" id="tab-advanced">
+      <div class="field">
+        <label for="hfToken">Hugging Face token (dev / missing-bundle fallback)</label>
+        <input type="password" id="hfToken" placeholder="hf_… — not needed for a normal install">
+        <div class="hint">Release builds ship MedASR, Qwen, and Gemma 4. A token is only used if those files are
+          missing from the installer (local development).</div>
+      </div>
+      <div class="field">
+        <label for="medasrRepo">MedASR ONNX repo (dev fallback)</label>
+        <input type="text" id="medasrRepo" placeholder="e.g. drskatyal/medasr-onnx">
+        <div class="hint">Ignored when <code>models/medasr*.onnx</code> is already in the app bundle.</div>
+      </div>
+      <div class="field">
+        <label for="modelsDir">Models folder</label>
+        <input type="text" id="modelsDir" placeholder="Default: app data folder">
+        <div class="hint">Point to a drive with free space (e.g. <code>D:\FlowRadModels</code>) if your C: drive is full.
+          <span id="modelsDirNow"></span></div>
+      </div>
+      <div class="field">
+        <label for="llamaServerPath">llama-server binary (for single-call audio STT)</label>
+        <input type="text" id="llamaServerPath" placeholder="e.g. C:\llama\llama-server.exe">
+        <div class="hint">Experimental. Gemma-4 audio engines run through a <code>llama-server</code> sidecar. Download a
+          recent <b>audio-capable</b> build from the llama.cpp releases, then point this at the <code>llama-server</code>
+          executable. Leave blank if you don't use the audio engines.</div>
+      </div>
+      <div class="field">
+        <label for="modelPath">Cleaning model file (optional override)</label>
+        <input type="text" id="modelPath" placeholder="Leave blank — auto-downloaded on first use">
+        <div class="hint">Qwen and Gemma ship in the installer. Only set this to use your own GGUF.</div>
+      </div>
+      <div class="section-label">Performance</div>
+      <div class="card">
+        <div class="toggle"><input type="checkbox" id="gpuAccel">
+          <div><div class="t-label">Use GPU acceleration for cleaning</div>
+            <div class="t-sub">Offload the cleaning model to your GPU (Intel Arc / NVIDIA / AMD / Apple) when
+              available — much faster than CPU. Falls back to CPU automatically. <b id="gpuNow"></b></div></div></div>
+      </div>
+      <div class="section-label">Notifications</div>
+      <div class="card">
+        <div class="toggle"><input type="checkbox" id="notifications">
+          <div><div class="t-label">Show OS pop-up notifications</div>
+            <div class="t-sub">Off by default — the HUD (teal idle, coral listening, gold transcribing, blue cleaning) is the quiet feedback.</div></div></div>
+      </div>
+    </section>
+
+    <!-- ===================== ABOUT ===================== -->
+    <section class="panel" id="tab-about">
+      <div class="card">
+        <div class="about-credit">
+          <h2 id="aboutName">Dictate by FlowRad</h2>
+          <p>Private, on-device medical dictation. Speech-to-text is Google MedASR (HAI-DEF). Optional cleanup
+            with Qwen or Gemma 4 runs locally when you release the mic.</p>
+          <p class="by" id="aboutBy">Developed by Dr. Sanyam Katyal</p>
+          <p>STT: Google MedASR · Cleanup: Qwen3-1.7B (default) / Gemma 4 E4B</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <button class="btn" id="save">Save</button>
+    <span id="saved">Saved ✓</span>
+    <span class="hint" style="margin-left:auto" id="footerCredit">Developed by Dr. Sanyam Katyal</span>
+  </footer>
+
+  <script src="./panel.js"></script>
+</body>
+</html>

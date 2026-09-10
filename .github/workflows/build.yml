@@ -1,0 +1,89 @@
+name: Build installers
+
+# Produces double-click installers (.exe / .dmg / .AppImage) with ALL native
+# modules (vosk, sherpa-onnx-node, node-llama-cpp, onnxruntime-node) compiled and
+# bundled inside — so end users never run npm or need build tools.
+#
+# Trigger: push a version tag (e.g. v0.1.0) to build + attach to a GitHub Release,
+# or run manually from the Actions tab (workflow_dispatch) to get artifacts.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write        # needed to create/attach the Release on a tag
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: 'app/dist/*.exe'
+          - os: macos-latest
+            artifact: 'app/dist/*.dmg'
+          - os: ubuntu-latest
+            artifact: 'app/dist/*.AppImage'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare models dir
+        run: mkdir -p models
+        shell: bash
+
+      # Bundle MedASR + Qwen + Gemma + Silero into extraResources.
+      - name: Bundle on-device weights
+        working-directory: app
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: node scripts/bundle-weights.js
+        shell: bash
+
+      # Bundle the small Vosk command model into the installer (optional; if the
+      # download host is unreachable the app fetches it at runtime instead).
+      - name: Bundle Vosk model
+        working-directory: app
+        run: node scripts/fetch-vosk.js || echo "skip vosk bundle (will download at runtime)"
+        shell: bash
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm install
+        # Native modules (incl. vosk's ffi-napi) compile here — the runners have
+        # the required build tools preinstalled.
+
+      - name: Build installer
+        working-directory: app
+        run: npm run dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Build unsigned on macOS in CI (maintainers can add signing secrets
+          # later). Unsigned apps still install; Gatekeeper shows a one-time
+          # right-click-Open prompt.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlowRad-${{ matrix.os }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: warn
+
+      - name: Attach to Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            app/dist/*.exe
+            app/dist/*.dmg
+            app/dist/*.AppImage
+            app/dist/*.blockmap
+            app/dist/latest*.yml

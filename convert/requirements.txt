@@ -1,0 +1,10 @@
+# Conversion toolchain (Phases 1-2). Run in the same venv as baseline/.
+git+https://github.com/huggingface/transformers.git@65dc261512cbdb1ee72b88ae5b222f2605aad8e5
+torch
+librosa
+onnx
+onnxruntime
+huggingface_hub
+# NOTE: do NOT install `kernels` in this env -- it makes the Hub-kernel
+# decorators inject non-traceable ops into the ONNX graph. If present:
+#   pip uninstall kernels

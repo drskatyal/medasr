@@ -1,0 +1,22 @@
+[
+  {
+    "audio": "/absolute/path/to/sample1.wav",
+    "reference": "ground truth transcript for sample 1 exactly as a clinician dictated it"
+  },
+  {
+    "audio": "/absolute/path/to/sample2.wav",
+    "reference": "ground truth transcript for sample 2"
+  },
+  {
+    "audio": "/absolute/path/to/sample3.wav",
+    "reference": "ground truth transcript for sample 3"
+  },
+  {
+    "audio": "/absolute/path/to/sample4.wav",
+    "reference": "ground truth transcript for sample 4"
+  },
+  {
+    "audio": "/absolute/path/to/sample5.wav",
+    "reference": "ground truth transcript for sample 5"
+  }
+]

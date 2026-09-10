@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node / Electron
+node_modules/
+app/dist/
+app/out/
+
+# Model weights & converted artifacts (gated HAI-DEF license — never commit)
+models/*
+!models/README.md
+*.onnx
+
+# Generated assets (produced by convert/export_assets.py)
+app/assets/*.json
+
+# Local scratch
+*.wav
+*.f32
+streaming/grid_results.json
+baseline/results.json

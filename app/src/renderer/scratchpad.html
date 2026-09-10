@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline';" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07151a; --surface: #0e2228; --text: #e7fbf5; --muted: #8eb5ad;
+      --border: rgba(46,230,197,.16); --accent: #2ee6c5; --accent-fg: #06221c; --danger: #ff5a6a;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+      font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .card {
+      height: 100%; display: flex; flex-direction: column;
+      background: linear-gradient(180deg, #10282e, #0b1c21);
+      color: var(--text);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: 0 16px 48px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+    header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      -webkit-app-region: drag; user-select: none;
+    }
+    header h1 { font-size: 13px; margin: 0; font-weight: 720; letter-spacing: -.01em; }
+    header .sub { font-size: 11px; color: var(--accent); margin-left: 4px; font-weight: 600; }
+    header button { -webkit-app-region: no-drag; }
+    .sp { flex: 1; }
+    textarea {
+      flex: 1; width: 100%; border: 0; resize: none; padding: 12px 14px;
+      background: transparent; color: inherit; font: 13.5px/1.5 -apple-system, "Segoe UI", sans-serif;
+      outline: none;
+    }
+    textarea::placeholder { color: var(--muted); }
+    footer {
+      display: flex; gap: 8px; padding: 10px 12px;
+      border-top: 1px solid var(--border);
+    }
+    button {
+      appearance: none; border: 1px solid var(--border); background: transparent;
+      color: var(--accent); font: 600 12px -apple-system, "Segoe UI", sans-serif;
+      padding: 6px 12px; border-radius: 8px; cursor: pointer;
+    }
+    button.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+    button.danger { color: var(--danger); }
+    button.ico { padding: 4px 8px; font-size: 14px; line-height: 1; color: var(--muted); border: 0; }
+    button.ico:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <header>
+      <h1>Scratchpad</h1>
+      <span class="sub" id="brandSub">Dictate by FlowRad</span>
+      <span class="sp"></span>
+      <button class="ico" id="hide" title="Hide">–</button>
+    </header>
+    <textarea id="pad" spellcheck="true" placeholder="Dictated text lands here. Edit freely, then type it into the focused app."></textarea>
+    <footer>
+      <button class="primary" id="type">Type into app</button>
+      <button id="copy">Copy</button>
+      <span class="sp"></span>
+      <button class="danger" id="clear">Clear</button>
+    </footer>
+  </div>
+  <script src="./scratchpad.js"></script>
+</body>
+</html>

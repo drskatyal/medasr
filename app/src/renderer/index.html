@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline';" />
+  <link rel="stylesheet" href="./widget.css" />
+</head>
+<body>
+  <div class="stage">
+    <div class="bar" id="bar">
+      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="11" fill="#0e3d38"/>
+        <path fill="#2ee6c5" d="M12 7.2a2.2 2.2 0 0 0-2.2 2.2v3.1a2.2 2.2 0 1 0 4.4 0V9.4A2.2 2.2 0 0 0 12 7.2zm4.1 5.3a.7.7 0 1 0-1.4.1 2.7 2.7 0 0 1-5.4 0 .7.7 0 1 0-1.4-.1 4.1 4.1 0 0 0 3.4 3.9v1.4h-1.3a.7.7 0 0 0 0 1.4h3.4a.7.7 0 0 0 0-1.4h-1.3v-1.4a4.1 4.1 0 0 0 3.4-3.9z"/>
+      </svg>
+      <div class="grip" id="grip" title="Drag">
+        <i></i><i></i><i></i><i></i><i></i><i></i>
+      </div>
+      <button type="button" class="act hold" id="btnHold" title="Hold to talk">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M8.5 10v4a.9.9 0 0 0 1.8 0v-4a.9.9 0 1 0-1.8 0zm2.6-2.2v8.4a.9.9 0 0 0 1.8 0V7.8a.9.9 0 1 0-1.8 0zm2.6 3.4v2.8a.9.9 0 0 0 1.8 0v-2.8a.9.9 0 1 0-1.8 0z"/></svg></span>
+        <span class="meta"><span class="lab" id="holdLab">Hold</span><kbd id="holdKbd">Alt+X</kbd></span>
+      </button>
+      <div class="orb" id="orb" title="Toggle dictation">
+        <span class="glow"></span>
+        <span class="ring"></span>
+        <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a1 1 0 1 1 2 0 7 7 0 0 1-6 6.92V21a1 1 0 1 1-2 0v-3.08A7 7 0 0 1 5 11a1 1 0 1 1 2 0 5 5 0 0 0 10 0z"/></svg>
+      </div>
+      <button type="button" class="act tog" id="btnToggle" title="Toggle dictation">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M8 6.8v10.4a.9.9 0 0 0 1.35.78l8.3-5.2a.9.9 0 0 0 0-1.56l-8.3-5.2A.9.9 0 0 0 8 6.8z"/></svg></span>
+        <span class="meta"><span class="lab" id="togLab">Toggle</span><kbd id="togKbd">Alt+Z</kbd></span>
+      </button>
+      <button type="button" class="iconbtn" id="btnPad" title="Scratchpad">
+        <svg viewBox="0 0 24 24"><path d="M7 3.5h7.2L19 8.3V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 6 20V5a1.5 1.5 0 0 1 1-1.5zm6.8.8v4.2H19"/></svg>
+      </button>
+    </div>
+    <div class="chip" id="cap"></div>
+  </div>
+  <script src="./renderer.js"></script>
+</body>
+</html>
