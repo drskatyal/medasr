@@ -64,8 +64,9 @@ async function init() {
     window.medasr.getBranding().catch(() => null),
   ]);
   if (brand) {
-    if ($('appName')) $('appName').textContent = brand.APP_NAME || 'FlowRad Dictate';
-    if ($('aboutName')) $('aboutName').textContent = brand.APP_NAME || 'FlowRad Dictate';
+    if ($('appName')) $('appName').textContent = brand.APP_NAME || 'Dictate';
+    if ($('appBy')) $('appBy').textContent = brand.BYLINE || 'by FlowRad';
+    if ($('aboutName')) $('aboutName').textContent = brand.APP_NAME_FULL || 'Dictate by FlowRad';
     if ($('aboutBy')) $('aboutBy').textContent = brand.AUTHOR_CREDIT || 'Developed by Dr. Sanyam Katyal';
     if ($('footerCredit')) $('footerCredit').textContent = brand.AUTHOR_CREDIT || 'Developed by Dr. Sanyam Katyal';
   }

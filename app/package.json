@@ -1,8 +1,8 @@
 {
   "name": "flowrad-dictate",
-  "productName": "FlowRad Dictate",
+  "productName": "Dictate by FlowRad",
   "version": "0.1.0",
-  "description": "Local, private medical dictation. On-device Google MedASR; Qwen/Gemma cleanup when the mic stops. Developed by Dr. Sanyam Katyal.",
+  "description": "Dictate by FlowRad — local, private medical dictation. On-device Google MedASR; Qwen/Gemma cleanup when the mic stops. Developed by Dr. Sanyam Katyal.",
   "main": "src/main/index.js",
   "author": "Dr. Sanyam Katyal",
   "license": "Apache-2.0",
@@ -34,7 +34,7 @@
   },
   "build": {
     "appId": "com.flowrad.vr",
-    "productName": "FlowRad Dictate",
+    "productName": "Dictate by FlowRad",
     "icon": "build/icon.png",
     "npmRebuild": true,
     "buildDependenciesFromSource": false,

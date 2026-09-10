@@ -31,4 +31,5 @@ contextBridge.exposeInMainWorld('medasr', {
   scratchpadCopy: (text) => ipcRenderer.invoke('scratchpad-copy', text),
   scratchpadType: (text) => ipcRenderer.invoke('scratchpad-type', text),
   onScratchpadSet: (cb) => ipcRenderer.on('scratchpad-set', (_e, text) => cb(text)),
+  onChrome: (cb) => ipcRenderer.on('widget-chrome', () => cb()),
 });

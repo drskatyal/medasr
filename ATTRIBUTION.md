@@ -3,7 +3,7 @@
 **Speech-to-text in this app is Google MedASR.**
 
 MedASR is an automated speech recognition model trained for healthcare audio.
-FlowRad Dictate runs a local int8 ONNX copy of that full model. We do
+Dictate by FlowRad runs a local int8 ONNX copy of that full model. We do
 not substitute another ASR engine and we do not ship a distilled student.
 
 Please credit:

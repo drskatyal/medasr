@@ -108,6 +108,23 @@ function formatAccelerator(accel, platform) {
   return parts.join('+');
 }
 
+function formatCompact(accel, platform) {
+  const { mods, key } = parseAccelerator(accel);
+  if (!key) return '';
+  const prettyKey = key === 'SPACE' ? 'Space' : key;
+  if (platform === 'darwin') {
+    return (mods.ctrl ? '⌃' : '') + (mods.alt ? '⌥' : '') + (mods.shift ? '⇧' : '')
+      + (mods.meta ? '⌘' : '') + prettyKey;
+  }
+  const bits = [];
+  if (mods.ctrl) bits.push('Ctrl');
+  if (mods.alt) bits.push('Alt');
+  if (mods.shift) bits.push('Shift');
+  if (mods.meta) bits.push('Win');
+  bits.push(prettyKey);
+  return bits.join('+');
+}
+
 function keycodeFor(key) {
   if (!key) return null;
   const k = String(key).toUpperCase();
@@ -154,7 +171,7 @@ function defaultToggleHotkey() { return TOGGLE_DEFAULT; }
 
 module.exports = {
   HOLD_DEFAULT, TOGGLE_DEFAULT,
-  parseAccelerator, sameCombo, formatAccelerator,
+  parseAccelerator, sameCombo, formatAccelerator, formatCompact,
   keycodeFor, eventMatchesUiohook, holdShouldStop, isModifierKeycode,
   migrateHotkeys, defaultHoldHotkey, defaultToggleHotkey, normalizeKey,
 };

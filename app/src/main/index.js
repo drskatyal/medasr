@@ -71,7 +71,7 @@ function acceptLicenses() {
   if (settings.licenseAccepted) return Promise.resolve(true);
   return new Promise((resolve) => {
     const win = new BrowserWindow({
-      width: 560, height: 660, title: branding.APP_NAME + ' — licenses',
+      width: 560, height: 680, title: branding.APP_NAME_FULL,
       resizable: true, minimizable: false, maximizable: false,
       webPreferences: {
         preload: path.join(__dirname, '..', 'preload', 'index.js'),
@@ -101,7 +101,7 @@ function acceptLicenses() {
 // ---------- widget window (persistent mic orb, superwhisper-style) ----------
 // Window is larger than the bar so the glow + expanding ring never get clipped.
 // The extra area is transparent.
-const ORB_W = 380, ORB_H = 96;
+const ORB_W = 540, ORB_H = 132;
 
 function createPill() {
   pill = new BrowserWindow({
@@ -116,20 +116,39 @@ function createPill() {
   pill.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   // Re-assert the command-listen state once the renderer is up (in case the
   // listener became ready before the orb finished loading).
-  pill.webContents.on('did-finish-load', () => { if (voskCmd && settings.alwaysOnCommands) setCmdListen(true); });
+  pill.webContents.on('did-finish-load', () => {
+    if (voskCmd && settings.alwaysOnCommands) setCmdListen(true);
+    pushWidgetChrome();
+  });
   pill.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  // Park it bottom-centre of the primary display and keep it visible (no
-  // show/hide cycling -> no flicker). State is conveyed by orb colour only.
   pill.once('ready-to-show', () => {
-    const wa = screen.getPrimaryDisplay().workArea;
-    pill.setBounds({
-      x: Math.round(wa.x + wa.width / 2 - ORB_W / 2),
-      y: Math.round(wa.y + wa.height - ORB_H - 24),
-      width: ORB_W, height: ORB_H,
-    });
+    pill.setBounds(resolvePillBounds());
     pill.setAlwaysOnTop(true, 'screen-saver');
     pill.showInactive();
   });
+}
+
+function resolvePillBounds() {
+  const displays = screen.getAllDisplays();
+  const wa = screen.getPrimaryDisplay().workArea;
+  const fallback = {
+    x: Math.round(wa.x + wa.width / 2 - ORB_W / 2),
+    y: Math.round(wa.y + wa.height - ORB_H - 20),
+    width: ORB_W, height: ORB_H,
+  };
+  const saved = settings.widgetBounds;
+  if (!saved || !Number.isFinite(saved.x) || !Number.isFinite(saved.y)) return fallback;
+  const b = { x: Math.round(saved.x), y: Math.round(saved.y), width: ORB_W, height: ORB_H };
+  const visible = displays.some((d) => {
+    const a = d.workArea;
+    return b.x + 60 < a.x + a.width && b.x + b.width - 60 > a.x
+      && b.y + 40 < a.y + a.height && b.y + b.height - 40 > a.y;
+  });
+  return visible ? b : fallback;
+}
+
+function pushWidgetChrome() {
+  if (pill && !pill.isDestroyed()) pill.webContents.send('widget-chrome');
 }
 
 // State is just an orb colour change; the window stays put. `pct` is used by
@@ -526,6 +545,8 @@ ipcMain.on('move-widget', (_e, { dx, dy }) => {
   if (!pill) return;
   const b = pill.getBounds();
   pill.setBounds({ x: b.x + Math.round(dx), y: b.y + Math.round(dy), width: b.width, height: b.height });
+  settings.widgetBounds = pill.getBounds();
+  persistScratchpadSoon();
 });
 
 ipcMain.handle('get-engines', () => ({
@@ -618,6 +639,7 @@ ipcMain.handle('set-settings', (_e, s) => {
   models.saveSettings(settings);
   if (settings.modelsDirOverride !== prevDir) provision.setModelsDir(settings.modelsDirOverride);
   registerHotkey();
+  pushWidgetChrome();
   setFocusLock(settings.lockFocus);
   setReplaceMode(settings.replaceWholeField ? 'all' : 'smart');
   refreshTrayMenu();
@@ -689,7 +711,7 @@ function buildTray() {
   if (icon.isEmpty()) icon = nativeImage.createEmpty();
   else if (process.platform === 'darwin') icon = icon.resize({ width: 18, height: 18 });
   tray = new Tray(icon);
-  tray.setToolTip(branding.APP_NAME + ' · on-device dictation');
+  tray.setToolTip(branding.APP_NAME_FULL + ' · on-device dictation');
   refreshTrayMenu();
 }
 
@@ -730,7 +752,7 @@ function notify(title, body) {
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); return; }
   settingsWin = new BrowserWindow({
-    width: 480, height: 680, title: branding.APP_NAME + ' — Settings', resizable: true,
+    width: 500, height: 700, title: branding.APP_NAME_FULL + ' — Settings', resizable: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'index.js'),
       contextIsolation: true, nodeIntegration: false,

@@ -17,6 +17,14 @@ bar.addEventListener('mousedown', (e) => {
   dragging = true;
   dragFrom = { x: e.screenX, y: e.screenY }; dragDist = 0;
 });
+const grip = document.getElementById('grip');
+if (grip) {
+  grip.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+    dragging = true;
+    dragFrom = { x: e.screenX, y: e.screenY }; dragDist = 0;
+  });
+}
 orb.addEventListener('mousedown', (e) => {
   dragFrom = { x: e.screenX, y: e.screenY }; dragDist = 0; dragging = false;
 });
@@ -70,19 +78,53 @@ btnHold.addEventListener('pointerup', endHold);
 btnHold.addEventListener('pointercancel', endHold);
 btnHold.addEventListener('lostpointercapture', endHold);
 
-// Orb states: idle (black), recording (red), and the processing states
-// transcribing / cleaning / downloading (tint + smooth arc + small caption).
+// Orb states: idle (teal), recording (coral + Listening), processing chips.
 const cap = document.getElementById('cap');
+const holdLab = document.getElementById('holdLab');
+const togLab = document.getElementById('togLab');
 function setState(state, pct) {
   const cls = { recording: 'rec', transcribing: 'transcribing', cleaning: 'cleaning', downloading: 'downloading' }[state] || '';
   document.body.className = cls;
+  if (togLab) togLab.textContent = state === 'recording' ? 'Stop' : 'Toggle';
+  if (holdLab) holdLab.textContent = (state === 'recording' && document.getElementById('btnHold').classList.contains('armed')) ? 'Release' : 'Hold';
   if (cap) {
-    cap.textContent = state === 'cleaning' ? 'Cleaning…'
-      : state === 'transcribing' ? 'Transcribing…'
-      : state === 'downloading' ? (typeof pct === 'number' ? pct + '%' : 'Downloading…')
+    cap.textContent = state === 'cleaning' ? 'Cleaning transcript'
+      : state === 'transcribing' ? 'Transcribing'
+      : state === 'downloading' ? (typeof pct === 'number' ? 'Downloading ' + pct + '%' : 'Downloading')
+      : state === 'recording' ? 'Listening'
       : '';
   }
 }
+
+async function applyChrome() {
+  try {
+    const [s, b] = await Promise.all([
+      window.medasr.getSettings(),
+      window.medasr.getBranding().catch(() => null),
+    ]);
+    const mac = /Mac/i.test(navigator.platform);
+    const compact = (accel) => {
+      const raw = String(accel || '');
+      if (mac) return raw.replace(/^Alt\+/i, '⌥').replace(/^Option\+/i, '⌥').replace(/^Control\+/i, '⌃').replace(/^Command\+/i, '⌘');
+      return raw.replace(/^Option\+/i, 'Alt+');
+    };
+    const hold = (s && s.holdHotkey) || 'Alt+X';
+    const tog = (s && (s.toggleHotkey || s.hotkey)) || 'Alt+Z';
+    const holdKbd = document.getElementById('holdKbd');
+    const togKbd = document.getElementById('togKbd');
+    if (holdKbd) holdKbd.textContent = compact(hold);
+    if (togKbd) togKbd.textContent = compact(tog);
+    const btnHold = document.getElementById('btnHold');
+    const btnToggle = document.getElementById('btnToggle');
+    const orb = document.getElementById('orb');
+    if (btnHold) btnHold.title = 'Hold to talk (' + hold + ')';
+    if (btnToggle) btnToggle.title = 'Toggle dictation (' + tog + ')';
+    if (orb) orb.title = 'Toggle dictation (' + tog + ')';
+    if (b && b.APP_NAME_FULL) document.title = b.APP_NAME_FULL;
+  } catch (e) {}
+}
+if (window.medasr && window.medasr.getSettings) applyChrome();
+window.medasr.onChrome && window.medasr.onChrome(applyChrome);
 
 const TARGET_SR = 16000;
 const PREROLL_S = 0.8;   // audio kept before you press the key, so the start isn't clipped

@@ -55,6 +55,7 @@ const DEFAULTS = {
   toggleHotkey: 'Alt+Z',     // tap to start/stop
   showScratchpad: true,      // floating notepad that collects transcripts
   scratchpadText: '',
+  widgetBounds: null,
   autoInject: true,   // type into focused app after transcribing
   playSounds: true,
   notifications: false,  // OS pop-up notifications — off by default (quiet app)

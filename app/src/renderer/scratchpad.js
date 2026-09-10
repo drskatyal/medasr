@@ -14,7 +14,7 @@ function scheduleSave() {
 async function init() {
   try {
     const b = await window.medasr.getBranding();
-    if (b && b.APP_NAME && brandSub) brandSub.textContent = b.APP_NAME;
+    if (b && (b.APP_NAME_FULL || b.APP_NAME) && brandSub) brandSub.textContent = b.APP_NAME_FULL || b.APP_NAME;
   } catch (e) {}
   try {
     const s = await window.medasr.getSettings();

@@ -1,4 +1,4 @@
-# FlowRad Dictate (Electron)
+# Dictate by FlowRad (Electron)
 
 Local, private, Wispr-Flow-style medical dictation: hold or toggle a global
 hotkey (or the orb buttons), speak, and the transcript is typed into whatever

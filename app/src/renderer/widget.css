@@ -1,0 +1,173 @@
+/* Dictate by FlowRad — floating HUD */
+:root {
+  --ink: #07151a;
+  --ink-2: #0c242a;
+  --mist: #e7fbf5;
+  --muted: #8eb5ad;
+  --teal: #2ee6c5;
+  --teal-deep: #0e3d38;
+  --coral: #ff5a6a;
+  --gold: #e8b84a;
+  --blue: #7eb6ff;
+  --glass: linear-gradient(180deg, rgba(18, 48, 54, .94), rgba(7, 21, 26, .97));
+}
+
+html, body {
+  margin: 0; height: 100%; background: transparent; overflow: hidden;
+  -webkit-user-select: none; user-select: none;
+  font-family: -apple-system, "Segoe UI", ui-sans-serif, sans-serif;
+}
+
+.stage {
+  height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 10px 12px 8px;
+  box-sizing: border-box;
+}
+
+.bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 8px 8px 8px;
+  border-radius: 30px;
+  background: var(--glass);
+  border: 1px solid rgba(46, 230, 197, .20);
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, .48),
+    0 0 0 1px rgba(0, 0, 0, .35),
+    inset 0 1px 0 rgba(255, 255, 255, .09);
+  backdrop-filter: blur(16px);
+  -webkit-app-region: no-drag;
+}
+
+.mark {
+  width: 22px; height: 22px; margin-left: 6px; flex: none;
+  opacity: .95;
+}
+
+.grip {
+  width: 12px; height: 40px; flex: none;
+  display: grid; grid-template-columns: 3px 3px; grid-template-rows: repeat(3, 3px);
+  gap: 3px; align-content: center; justify-content: center;
+  cursor: grab; opacity: .38;
+}
+.grip:hover { opacity: .7; }
+.grip i { display: block; width: 3px; height: 3px; border-radius: 50%; background: var(--mist); }
+
+.act {
+  appearance: none; border: 1px solid rgba(255,255,255,.07);
+  cursor: pointer; display: flex; align-items: center; gap: 8px;
+  height: 52px; padding: 0 14px 0 10px; border-radius: 18px;
+  background: rgba(255,255,255,.045); color: var(--mist);
+  transition: background .15s ease, border-color .15s ease, transform .12s ease;
+}
+.act:hover { background: rgba(255,255,255,.08); }
+.act .ico { width: 22px; height: 22px; display: grid; place-items: center; flex: none; }
+.act .ico svg { width: 18px; height: 18px; fill: currentColor; }
+.act .meta { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.act .lab {
+  font: 700 10px/1 -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: .12em; text-transform: uppercase;
+}
+.act kbd {
+  font: 600 10px/1 ui-monospace, Menlo, Consolas, monospace;
+  color: var(--muted); background: none; border: 0; padding: 0;
+}
+
+.act.hold.armed,
+body.rec .act.hold {
+  background: linear-gradient(180deg, #ff7d88, #e23b4e);
+  border-color: transparent; color: #fff;
+  box-shadow: 0 6px 16px rgba(255, 90, 106, .35);
+}
+body.rec .act.hold kbd { color: rgba(255,255,255,.82); }
+
+.act.tog {
+  background: rgba(46, 230, 197, .10);
+  border-color: rgba(46, 230, 197, .28);
+}
+.act.tog:hover { background: rgba(46, 230, 197, .18); }
+body.rec .act.tog {
+  background: rgba(255, 90, 106, .12);
+  border-color: rgba(255, 90, 106, .32);
+  color: #ffd6db;
+}
+body.rec .act.tog kbd { color: #ffb4bc; }
+
+.iconbtn {
+  appearance: none; border: 0; cursor: pointer;
+  width: 40px; height: 40px; border-radius: 14px; margin-right: 4px;
+  background: transparent; color: var(--muted);
+  display: grid; place-items: center;
+  transition: background .12s, color .12s;
+}
+.iconbtn svg { width: 18px; height: 18px; fill: currentColor; }
+.iconbtn:hover { background: rgba(255,255,255,.08); color: var(--mist); }
+
+.orb {
+  position: relative; cursor: pointer; flex: none;
+  width: 58px; height: 58px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 32% 28%, #4ff3d4 0%, #1aa890 42%, #0b3a36 100%);
+  box-shadow:
+    0 0 0 3px rgba(46, 230, 197, .22),
+    0 8px 22px rgba(0, 0, 0, .4),
+    inset 0 1px 0 rgba(255,255,255,.35);
+  transition: background .18s ease, box-shadow .18s ease;
+}
+.orb svg { width: 24px; height: 24px; fill: #fff; opacity: .95; z-index: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); }
+.glow {
+  position: absolute; inset: -10px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(46,230,197,.35), transparent 68%);
+  opacity: .7; pointer-events: none;
+}
+.ring {
+  position: absolute; inset: -5px; border-radius: 50%;
+  border: 2px solid transparent; opacity: 0; box-sizing: border-box;
+}
+
+body.rec .orb {
+  background: radial-gradient(circle at 32% 28%, #ffb3ba 0%, #ff5a6a 48%, #9a1828 100%);
+  box-shadow:
+    0 0 0 3px rgba(255, 90, 106, .35),
+    0 0 28px rgba(255, 90, 106, .5),
+    inset 0 1px 0 rgba(255,255,255,.35);
+  animation: breathe 1.8s ease-in-out infinite;
+}
+body.rec .glow { background: radial-gradient(circle, rgba(255,90,106,.45), transparent 68%); }
+
+body.transcribing .orb {
+  background: radial-gradient(circle at 32% 28%, #ffe08a 0%, #e8b84a 50%, #8a6a12 100%);
+  box-shadow: 0 0 0 3px rgba(232,184,74,.35), 0 0 22px rgba(232,184,74,.4);
+  animation: none;
+}
+body.cleaning .orb {
+  background: radial-gradient(circle at 32% 28%, #b7d4ff 0%, #4d8eef 50%, #1a3f80 100%);
+  box-shadow: 0 0 0 3px rgba(126,182,255,.35), 0 0 22px rgba(80,140,255,.4);
+  animation: none;
+}
+body.downloading .orb {
+  background: radial-gradient(circle at 32% 28%, #c5d0cc 0%, #5b6b68 55%, #24302e 100%);
+  animation: none;
+}
+body.transcribing .ring { opacity: 1; border-top-color: #fff3c4; animation: spin 1.05s linear infinite; }
+body.cleaning .ring { opacity: 1; border-top-color: #d6e8ff; animation: spin 1.05s linear infinite; }
+body.downloading .ring { opacity: 1; border-top-color: #e5e7eb; animation: spin 1.05s linear infinite; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.045); }
+}
+
+.chip {
+  margin-top: 6px; min-height: 16px;
+  font: 650 11px/1 -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: .04em; color: var(--mist);
+  text-shadow: 0 1px 3px rgba(0,0,0,.55);
+  opacity: 0; transition: opacity .15s;
+  pointer-events: none;
+}
+body.transcribing .chip, body.cleaning .chip, body.downloading .chip, body.rec .chip { opacity: .95; }
+body.rec .chip { color: #ffd0d5; }
+body.transcribing .chip { color: #ffe7a8; }
+body.cleaning .chip { color: #cfe0ff; }

@@ -5,19 +5,12 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline';" />
   <style>
     :root {
-      color-scheme: light dark;
-      --bg: #f4f6f9; --surface: #ffffff; --surface-2: #f0f2f6;
-      --text: #1a1d23; --muted: #6b7280; --border: #e3e6eb;
-      --accent: #2563eb; --accent-fg: #ffffff; --accent-weak: rgba(37,99,235,.10);
-      --success: #16a34a; --warn: #d97706; --danger: #dc2626;
-      --radius: 10px; --radius-sm: 7px;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #16181d; --surface: #1e2128; --surface-2: #23262e;
-        --text: #e8eaed; --muted: #9aa0aa; --border: #2c3038;
-        --accent: #3b82f6; --accent-weak: rgba(59,130,246,.16);
-      }
+      color-scheme: dark;
+      --bg: #07151a; --surface: #0e2228; --surface-2: #143038;
+      --text: #e7fbf5; --muted: #8eb5ad; --border: rgba(46,230,197,.14);
+      --accent: #2ee6c5; --accent-fg: #06221c; --accent-weak: rgba(46,230,197,.14);
+      --success: #2ee6c5; --warn: #e8b84a; --danger: #ff5a6a;
+      --radius: 12px; --radius-sm: 8px;
     }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13.5px;
@@ -27,8 +20,11 @@
     header { padding: 16px 20px 10px; }
     header h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
     header p { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
-    .wordmark { display: flex; align-items: baseline; gap: 8px; }
-    .wordmark em { font-style: normal; font-weight: 600; color: var(--accent); font-size: 12px; }
+    .wordmark { display: flex; align-items: center; gap: 12px; }
+    .wordmark svg { width: 36px; height: 36px; flex: none; }
+    .wordmark .titles { display: flex; flex-direction: column; gap: 1px; }
+    .wordmark h1 { font-size: 20px; margin: 0; font-weight: 720; letter-spacing: -.03em; }
+    .wordmark em { font-style: normal; font-weight: 600; color: var(--accent); font-size: 12px; letter-spacing: .04em; }
 
     /* tab bar */
     .tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--border); }
@@ -131,8 +127,17 @@
 </head>
 <body>
   <header>
-    <div class="wordmark"><h1 id="appName">FlowRad Dictate</h1><em>on-device</em></div>
-    <p>Medical dictation · speech recognition by <b>Google MedASR</b> · cleanup on mic-off</p>
+    <div class="wordmark">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="11" fill="#0e3d38"/>
+        <path fill="#2ee6c5" d="M12 7.2a2.2 2.2 0 0 0-2.2 2.2v3.1a2.2 2.2 0 1 0 4.4 0V9.4A2.2 2.2 0 0 0 12 7.2zm4.1 5.3a.7.7 0 1 0-1.4.1 2.7 2.7 0 0 1-5.4 0 .7.7 0 1 0-1.4-.1 4.1 4.1 0 0 0 3.4 3.9v1.4h-1.3a.7.7 0 0 0 0 1.4h3.4a.7.7 0 0 0 0-1.4h-1.3v-1.4a4.1 4.1 0 0 0 3.4-3.9z"/>
+      </svg>
+      <div class="titles">
+        <h1 id="appName">Dictate</h1>
+        <em id="appBy">by FlowRad</em>
+      </div>
+    </div>
+    <p>On-device medical dictation · speech recognition by <b>Google MedASR</b></p>
   </header>
 
   <nav class="tabs">
@@ -345,7 +350,7 @@
       <div class="card">
         <div class="toggle"><input type="checkbox" id="notifications">
           <div><div class="t-label">Show OS pop-up notifications</div>
-            <div class="t-sub">Off by default — the mic orb (black/red/blue) is the quiet feedback.</div></div></div>
+            <div class="t-sub">Off by default — the HUD (teal idle, coral listening, gold transcribing, blue cleaning) is the quiet feedback.</div></div></div>
       </div>
     </section>
 
@@ -353,7 +358,7 @@
     <section class="panel" id="tab-about">
       <div class="card">
         <div class="about-credit">
-          <h2 id="aboutName">FlowRad Dictate</h2>
+          <h2 id="aboutName">Dictate by FlowRad</h2>
           <p>Private, on-device medical dictation. Speech-to-text is Google MedASR (HAI-DEF). Optional cleanup
             with Qwen or Gemma 4 runs locally when you release the mic.</p>
           <p class="by" id="aboutBy">Developed by Dr. Sanyam Katyal</p>

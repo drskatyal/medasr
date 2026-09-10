@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  parseAccelerator, sameCombo, formatAccelerator, keycodeFor,
+  parseAccelerator, sameCombo, formatAccelerator, formatCompact, keycodeFor,
   eventMatchesUiohook, holdShouldStop, migrateHotkeys, normalizeKey,
   HOLD_DEFAULT, TOGGLE_DEFAULT,
 } = require('./hotkeys');
@@ -32,7 +32,12 @@ test('sameCombo treats Option+X and Alt+X as equal', () => {
 test('formatAccelerator uses Option on macOS and Alt on Windows', () => {
   assert.equal(formatAccelerator('Alt+X', 'darwin'), 'Option+X');
   assert.equal(formatAccelerator('Alt+X', 'win32'), 'Alt+X');
-  assert.equal(formatAccelerator('Alt+Z', 'darwin'), 'Option+Z');
+});
+
+test('formatCompact uses glyphs on macOS and words on Windows', () => {
+  assert.equal(formatCompact('Alt+X', 'darwin'), '⌥X');
+  assert.equal(formatCompact('Alt+Z', 'win32'), 'Alt+Z');
+  assert.equal(formatCompact('Control+Shift+Space', 'darwin'), '⌃⇧Space');
 });
 
 test('normalizeKey maps F-keys and space', () => {
