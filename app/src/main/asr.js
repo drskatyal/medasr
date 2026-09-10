@@ -6,6 +6,7 @@ const path = require('path');
 const ort = require('onnxruntime-node');
 const { FeatureExtractor } = require('./features');
 const { loadVocab, greedyCTC } = require('./decode');
+const { createOnnxSession, threadCount } = require('./runtime');
 
 const SR = 16000;
 const ENC_FPS = 25;            // encoder frames per second (mel /4)
@@ -22,18 +23,16 @@ class Asr {
   constructor({ modelPath, assetsDir, threads }) {
     this.modelPath = modelPath;
     this.assetsDir = assetsDir;
-    this.threads = threads || Math.max(1, (require('os').cpus().length || 4) - 1);
+    this.threads = threads || threadCount();
     this.fe = new FeatureExtractor(assetsDir);
     this.vocab = loadVocab(assetsDir);
     this.session = null;
+    this.ep = 'cpu';
   }
 
   async init() {
-    this.session = await ort.InferenceSession.create(this.modelPath, {
-      executionProviders: ['cpu'],
-      intraOpNumThreads: this.threads,
-      graphOptimizationLevel: 'all',
-    });
+    this.session = await createOnnxSession(ort, this.modelPath, { threads: this.threads });
+    this.ep = this.session.executionProvider || 'cpu';
     return this;
   }
 

@@ -12,8 +12,6 @@ const {
 function log(...a) { console.log('[medasr]', ...a); }
 
 const { Asr } = require('./asr');
-const { ParakeetAsr } = require('./asr_parakeet');
-const { LlamaAudioAsr } = require('./asr_llama_audio');
 const { injectText, replaceText, setFocusLock, setReplaceMode } = require('./inject');
 const focus = require('./focus');
 const { LlmEngine } = require('./llm');
@@ -58,10 +56,39 @@ let settings = models.loadSettings();
 let recording = false;
 let modelReady = false;
 
-// Hugging Face token for gated weights (MedASR, MedGemma). Prefer the in-app
-// setting (non-technical users can't set env vars); fall back to the env var
-// for developers/CI.
+// Hugging Face token is only needed if a bundled weight is missing (dev builds).
 function hfToken() { return (settings.hfToken && settings.hfToken.trim()) || process.env.HF_TOKEN || ''; }
+
+function acceptLicenses() {
+  if (settings.licenseAccepted) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const win = new BrowserWindow({
+      width: 560, height: 660, title: 'MedASR licenses',
+      resizable: true, minimizable: false, maximizable: false,
+      webPreferences: {
+        preload: path.join(__dirname, '..', 'preload', 'index.js'),
+        contextIsolation: true, nodeIntegration: false,
+      },
+    });
+    win.setMenuBarVisibility(false);
+    win.loadFile(path.join(__dirname, '..', 'renderer', 'license.html'));
+    const finish = (ok) => {
+      ipcMain.removeListener('license-accept', onOk);
+      ipcMain.removeListener('license-decline', onNo);
+      if (!win.isDestroyed()) win.close();
+      resolve(ok);
+    };
+    const onOk = () => {
+      settings.licenseAccepted = true;
+      models.saveSettings(settings);
+      finish(true);
+    };
+    const onNo = () => finish(false);
+    ipcMain.once('license-accept', onOk);
+    ipcMain.once('license-decline', onNo);
+    win.on('closed', () => resolve(!!settings.licenseAccepted));
+  });
+}
 
 // ---------- widget window (persistent mic orb, superwhisper-style) ----------
 // Window is larger than the orb so the glow + expanding ring never get clipped
@@ -223,7 +250,7 @@ async function handleAlwaysOnCommand(text) {
 async function startRecording() {
   log('hotkey -> start. modelReady =', modelReady, 'realtime =', !!settings.realtimeMode);
   if (recording || !modelReady) {
-    if (!modelReady) notify('Model not ready', 'Run the conversion pipeline first (see RUNBOOK.md).');
+    if (!modelReady) notify('MedASR not ready', 'The installer should include google/medasr ONNX under models/. See ATTRIBUTION.md.');
     return;
   }
   recording = true;
@@ -335,6 +362,7 @@ ipcMain.handle('audio-chunk', async (_evt, float32Array) => {
     }
 
     if (text && settings.cleanupEnabled && llm) {
+      // Mic-off cleaning pass: MedASR already produced `text`; the LLM only edits it.
       setPill('cleaning');
       try {
         const c0 = Date.now();
@@ -465,25 +493,25 @@ ipcMain.handle('setup', async (_e, what, id) => {
 });
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('set-settings', (_e, s) => {
-  const wasCleanup = settings.cleanupEnabled;
   const prevStt = settings.sttEngine;
   const prevDir = settings.modelsDirOverride;
+  const prevCleanup = settings.cleanupModel;
+  const prevEnabled = settings.cleanupEnabled;
   settings = { ...settings, ...s };
+  settings.sttEngine = 'medasr';
   models.saveSettings(settings);
   if (settings.modelsDirOverride !== prevDir) provision.setModelsDir(settings.modelsDirOverride);
   registerHotkey();
   setFocusLock(settings.lockFocus);
   setReplaceMode(settings.replaceWholeField ? 'all' : 'smart');
   refreshTrayMenu();
-  // Reload the STT engine if the user switched it (only loads if its files are
-  // already present; loadAsr falls back to MedASR otherwise — no auto-download).
   if (settings.sttEngine !== prevStt) loadAsr();
-  // Saving does NOT download big models — only LOAD what's already installed.
-  // Missing models are fetched only when the user clicks Download. (VAD is ~2 MB
-  // and required for real-time, so it may fetch on first real-time use.)
   if (settings.realtimeMode && !vad) ensureRealtime().catch(() => {});
-  if (settings.cleanupEnabled && !llm && provision.isInstalled(settings.cleanupModel)) ensureCleanupLlm();
-  if (!settings.cleanupEnabled && llm) { llm.stop(); llm = null; llmState = 'off'; refreshTrayMenu(); }
+  if (settings.cleanupEnabled) {
+    const switched = prevCleanup !== settings.cleanupModel || !prevEnabled;
+    if (switched && llm) { try { llm.stop(); } catch (e) {} llm = null; llmState = 'off'; }
+    if (!llm && provision.isInstalled(settings.cleanupModel)) ensureCleanupLlm();
+  } else if (llm) { llm.stop(); llm = null; llmState = 'off'; refreshTrayMenu(); }
   if (settings.alwaysOnCommands && !voskCmd && provision.isVoskInstalled()) ensureCommandListener();
   if (!settings.alwaysOnCommands && voskCmd) stopCommandListener();
   return settings;
@@ -509,13 +537,13 @@ function buildTray() {
   if (icon.isEmpty()) icon = nativeImage.createEmpty();
   else if (process.platform === 'darwin') icon = icon.resize({ width: 18, height: 18 });
   tray = new Tray(icon);
-  tray.setToolTip('FlowRad Open Source VR');
+  tray.setToolTip('FlowRad · MedASR (Google) on-device dictation');
   refreshTrayMenu();
 }
 
 function refreshTrayMenu() {
   const menu = Menu.buildFromTemplate([
-    { label: modelReady ? 'Ready' : 'Model not loaded', enabled: false },
+    { label: modelReady ? 'MedASR ready' : 'MedASR not loaded', enabled: false },
     { label: `Dictate  (${settings.hotkey})`, click: toggleRecording, enabled: modelReady },
     { type: 'separator' },
     {
@@ -569,96 +597,50 @@ async function boot() {
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(true));
   session.defaultSession.setPermissionCheckHandler(() => true);
 
+  if (!(await acceptLicenses())) {
+    app.quit();
+    return;
+  }
+
   createPill();
   buildTray();
   registerHotkey();
   setFocusLock(settings.lockFocus);
   setReplaceMode(settings.replaceWholeField ? 'all' : 'smart');
-  provision.setModelsDir(settings.modelsDirOverride);   // honor a custom models location
+  provision.setModelsDir(settings.modelsDirOverride);
 
   await loadAsr();
-  // NEVER auto-download on launch. Only LOAD models that are already installed;
-  // anything missing waits for an explicit Download click in Settings.
-  if (settings.cleanupEnabled && provision.isInstalled(settings.cleanupModel)) ensureCleanupLlm();
+  // Bundled Qwen/Gemma: load the selected cleaner so the mic-off pass is ready.
+  if (settings.cleanupEnabled && settings.cleanupModel !== 'off') ensureCleanupLlm();
   if (settings.alwaysOnCommands && provision.isVoskInstalled()) ensureCommandListener();
 
   refreshTrayMenu();
   initAutoUpdate();
 }
 
-// Load the selected STT engine. Parakeet-TDT engines (Omi Med STT / Parakeet
-// medical) run via sherpa-onnx if their model files are present; otherwise we
-// fall back to MedASR so the app always works.
-// The llama-server binary (for single-call audio engines). User-provided path
-// for now (download one from a llama.cpp release with mtmd/audio support).
-function resolveLlamaServer() {
-  const p = settings.llamaServerPath;
-  return (p && require('fs').existsSync(p)) ? p : null;
-}
-
 async function loadAsr() {
   modelReady = false;
-  if (asr && typeof asr.stop === 'function') { try { asr.stop(); } catch (e) {} }  // stop a running audio sidecar
+  if (asr && typeof asr.stop === 'function') { try { asr.stop(); } catch (e) {} }
   asr = null;
   sttActive = 'none'; sttNote = '';
-  const engId = settings.sttEngine || 'medasr';
-  const eng = engines.sttEngine(engId);
-  if (eng && !eng.implemented) sttNote = 'not available yet — using MedASR';  // honest default
+  settings.sttEngine = 'medasr';
 
-  if (eng && eng.runtime === 'parakeet-tdt') {
-    const dir = provision.sttModelDir(engId);
-    if (ParakeetAsr.isInstalled(dir)) {
-      try {
-        asr = await new ParakeetAsr({ modelDir: dir }).init();
-        modelReady = true; sttActive = engId; sttNote = 'running';
-        log(`STT engine '${engId}' (Parakeet/sherpa-onnx) loaded`);
-        return;
-      } catch (e) {
-        sttNote = `failed to load (${e && e.message || e}) — using MedASR`;
-        log(`Parakeet engine '${engId}' failed, falling back to MedASR:`, e && e.message || e);
-      }
-    } else {
-      sttNote = 'needs model files — click “Set up” (see docs/PARAKEET.md). Using MedASR.';
-      log(`'${engId}' model files not found in ${dir} -> MedASR`);
-    }
-  } else if (eng && eng.runtime === 'llama-server-audio') {
-    const serverBin = resolveLlamaServer();
-    if (!provision.isAudioInstalled(engId)) {
-      sttNote = 'needs model files — click “Set up”. Using MedASR.';
-      log(`'${engId}' audio model not downloaded -> MedASR`);
-    } else if (!serverBin) {
-      sttNote = 'set the llama-server binary path in Settings → Advanced. Using MedASR.';
-      log(`'${engId}': no llama-server binary configured -> MedASR`);
-    } else {
-      try {
-        const p = provision.audioPaths(engId);
-        asr = await new LlamaAudioAsr({ serverBin, modelPath: p.model, mmprojPath: p.mmproj, gpu: settings.gpuAccel }).init();
-        modelReady = true; sttActive = engId; sttNote = 'running (single-call audio LLM)';
-        log(`STT engine '${engId}' (llama-server audio) loaded`);
-        return;
-      } catch (e) {
-        sttNote = `failed to start (${e && e.message || e}) — using MedASR`;
-        log(`audio engine '${engId}' failed, falling back to MedASR:`, e && e.message || e);
-      }
-    }
-  }
-
-  // Default: MedASR (onnxruntime-node + CTC).
   const modelPath = models.resolveModelPath();
   const assetsDir = models.resolveAssetsDir();
-  log('modelPath =', modelPath, '| assetsDir =', assetsDir);
+  log('MedASR modelPath =', modelPath, '| assetsDir =', assetsDir);
   if (!modelPath) {
-    sttNote = 'MedASR not set up — open Settings → Models, add your Hugging Face token, and click “Set up”.';
-    notify('Set up MedASR', 'Open Settings → Models, paste your Hugging Face token, then click “Set up” to download MedASR.');
+    sttNote = 'MedASR ONNX missing from the installer (models/medasr*.onnx).';
+    notify('MedASR missing', 'Rebuild with app/scripts/bundle-weights.js so the ONNX ships in the app.');
     return;
   }
   try {
     asr = await new Asr({ modelPath, assetsDir }).init();
-    modelReady = true; sttActive = 'medasr'; if (!sttNote) sttNote = 'running';
-    log('MedASR loaded OK. Press', settings.hotkey, 'to dictate.');
+    modelReady = true; sttActive = 'medasr';
+    sttNote = `Google MedASR · ${path.basename(modelPath)} · ${asr.ep || 'cpu'}`;
+    log('MedASR loaded OK (', sttNote, '). Press', settings.hotkey, 'to dictate.');
   } catch (e) {
     log('MedASR load FAILED:', e);
-    notify('Failed to load model', String(e && e.message || e));
+    notify('Failed to load MedASR', String(e && e.message || e));
   }
 }
 

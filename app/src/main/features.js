@@ -17,12 +17,20 @@ const path = require('path');
 function loadAssets(assetsDir) {
   const fc = JSON.parse(fs.readFileSync(path.join(assetsDir, 'feature_config.json'), 'utf8'));
   const mf = JSON.parse(fs.readFileSync(path.join(assetsDir, 'mel_filterbank.json'), 'utf8'));
-  return { fc, melShape: mf.shape, mel: Float64Array.from(mf.data) };
+  const nBins = mf.shape[0];
+  const nMels = mf.shape[1];
+  const src = mf.data;
+  // Store [nMels][nBins] so the inner product streams contiguously.
+  const melT = new Float32Array(nMels * nBins);
+  for (let b = 0; b < nBins; b++) {
+    for (let m = 0; m < nMels; m++) melT[m * nBins + b] = src[b * nMels + m];
+  }
+  return { fc, nBins, nMels, melT };
 }
 
 function hannNonPeriodic(N) {
   // matches torch.hann_window(N, periodic=False): 0.5 - 0.5*cos(2*pi*n/(N-1))
-  const w = new Float64Array(N);
+  const w = new Float32Array(N);
   for (let n = 0; n < N; n++) w[n] = 0.5 - 0.5 * Math.cos((2 * Math.PI * n) / (N - 1));
   return w;
 }
@@ -59,36 +67,38 @@ function fft(re, im) {
 
 class FeatureExtractor {
   constructor(assetsDir) {
-    const { fc, melShape, mel } = loadAssets(assetsDir);
+    const { fc, nBins, nMels, melT } = loadAssets(assetsDir);
     this.fc = fc;
     this.window = hannNonPeriodic(fc.win_length);
-    this.mel = mel;               // [nbins*128] row-major, nbins=257
-    this.nBins = melShape[0];     // 257
-    this.nMels = melShape[1];     // 128
+    this.melT = melT;             // [nMels * nBins]
+    this.nBins = nBins;           // 257
+    this.nMels = nMels;           // 128
+    this._re = new Float32Array(fc.n_fft);
+    this._im = new Float32Array(fc.n_fft);
+    this._power = new Float32Array(nBins);
   }
 
   // pcm: Float32Array mono @ 16kHz. Returns {data: Float32Array[T*128], frames, mels}.
   extract(pcm) {
-    const { hop_length: hop, win_length: win, n_fft: nfft } = this.fc;
+    const { hop_length: hop, win_length: win } = this.fc;
     if (pcm.length < win) return { data: new Float32Array(0), frames: 0, mels: this.nMels };
     const frames = 1 + Math.floor((pcm.length - win) / hop);
     const out = new Float32Array(frames * this.nMels);
-    const re = new Float64Array(nfft);
-    const im = new Float64Array(nfft);
+    const re = this._re, im = this._im, power = this._power;
+    const nBins = this.nBins, nMels = this.nMels, melT = this.melT, window = this.window;
 
     for (let f = 0; f < frames; f++) {
       const start = f * hop;
       re.fill(0); im.fill(0);
-      for (let i = 0; i < win; i++) re[i] = pcm[start + i] * this.window[i];
+      for (let i = 0; i < win; i++) re[i] = pcm[start + i] * window[i];
       fft(re, im);
-      // mel = power(257) @ melFilter, then log(clamp(., 1e-5))
-      for (let m = 0; m < this.nMels; m++) {
+      for (let b = 0; b < nBins; b++) power[b] = re[b] * re[b] + im[b] * im[b];
+      const base = f * nMels;
+      for (let m = 0; m < nMels; m++) {
         let acc = 0;
-        for (let b = 0; b < this.nBins; b++) {
-          const p = re[b] * re[b] + im[b] * im[b];
-          acc += p * this.mel[b * this.nMels + m];
-        }
-        out[f * this.nMels + m] = Math.log(Math.max(acc, 1e-5));
+        const row = m * nBins;
+        for (let b = 0; b < nBins; b++) acc += power[b] * melT[row + b];
+        out[base + m] = Math.log(Math.max(acc, 1e-5));
       }
     }
     return { data: out, frames, mels: this.nMels };

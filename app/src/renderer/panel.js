@@ -67,7 +67,7 @@ async function init() {
   const rowsStt = {}, rowsClean = {};
   // MedASR is downloadable too (gated ONNX via the user's HF token) — so it shows
   // a "Set up" button on first run when the weights aren't present yet.
-  const sttInstallable = (it) => it.id === 'medasr' || it.runtime === 'parakeet-tdt' || it.runtime === 'llama-server-audio';
+  const sttInstallable = (it) => false; // MedASR ships in the installer
   function buildRow(container, it, group, { installable, isOff }) {
     const row = document.createElement('div'); row.className = 'mrow2';
     const radio = document.createElement('input'); radio.type = 'radio'; radio.name = group; radio.value = it.id;
@@ -81,7 +81,7 @@ async function init() {
     row.appendChild(radio); row.appendChild(body);
     let btn = null;
     if (installable && !isOff) {
-      btn = document.createElement('button'); btn.className = 'btn'; btn.textContent = 'Download';
+      btn = document.createElement('button'); btn.className = 'btn'; btn.textContent = it.bundled ? 'Bundled' : 'Download';
       btn.addEventListener('click', async () => {
         btn.textContent = 'Starting…'; btn.disabled = true;
         radio.checked = true;
@@ -99,7 +99,7 @@ async function init() {
     return { badge, pbar, btn, installable, isOff };
   }
   for (const it of engines.stt) rowsStt[it.id] = buildRow($('sttList'), it, 'sttSel', { installable: sttInstallable(it), isOff: false });
-  for (const it of engines.cleanup) rowsClean[it.id] = buildRow($('cleanList'), it, 'cleanSel', { installable: it.id !== 'off', isOff: it.id === 'off' });
+  for (const it of engines.cleanup) rowsClean[it.id] = buildRow($('cleanList'), it, 'cleanSel', { installable: it.id !== 'off' && !it.bundled, isOff: it.id === 'off' });
   const sttRadio = document.querySelector(`input[name=sttSel][value="${settings.sttEngine}"]`);
   if (sttRadio) sttRadio.checked = true;
   const initClean = settings.cleanupEnabled ? (settings.cleanupModel || 'off') : 'off';

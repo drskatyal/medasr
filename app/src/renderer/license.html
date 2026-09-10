@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline';" />
+  <title>Licenses</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13.5px;
+      padding: 22px 24px 18px; color: #1a1d23; background: #f4f6f9; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #16181d; color: #e8eaed; }
+    }
+    h1 { font-size: 17px; margin: 0 0 8px; }
+    p, li { line-height: 1.45; }
+    .muted { color: #6b7280; font-size: 12.5px; }
+    .box { background: #fff; border: 1px solid #e3e6eb; border-radius: 10px; padding: 12px 14px; margin: 12px 0; }
+    @media (prefers-color-scheme: dark) {
+      .box { background: #1e2128; border-color: #2c3038; }
+      .muted { color: #9aa0aa; }
+    }
+    label { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0; }
+    footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+    button { padding: 8px 14px; border-radius: 8px; border: 0; font-weight: 600; cursor: pointer; }
+    #go { background: #2563eb; color: #fff; }
+    #go:disabled { opacity: .45; cursor: default; }
+    #no { background: transparent; }
+    a { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>Before you dictate</h1>
+  <p>This app ships the models on disk. Nothing is downloaded to start. You still need to accept the licenses that cover those weights.</p>
+  <div class="box">
+    <p><b>Speech recognition is Google MedASR</b> (<code>google/medasr</code>), a healthcare ASR model from Health AI Developer Foundations. Converted and distilled ONNX files in this installer are MedASR derivatives.</p>
+    <p class="muted">HAI-DEF terms: <span>developers.google.com/health-ai-developer-foundations/terms</span></p>
+    <p class="muted">Model card: <span>developers.google.com/health-ai-developer-foundations/medasr/model-card</span></p>
+  </div>
+  <div class="box">
+    <p>When you <b>stop the microphone</b>, MedASR’s transcript can be passed through a local cleanup model (text only — not audio):</p>
+    <ul>
+      <li><b>Qwen3-1.7B</b> — default, Apache 2.0</li>
+      <li><b>Gemma 4 E4B</b> — optional, Gemma Terms of Use</li>
+    </ul>
+  </div>
+  <label>
+    <input type="checkbox" id="ok">
+    <span>I accept the MedASR / HAI-DEF license, the Gemma Terms of Use for Gemma 4, and Apache 2.0 for Qwen3. I will not use the models for prohibited purposes in those terms.</span>
+  </label>
+  <footer>
+    <button id="no">Quit</button>
+    <button id="go" disabled>Continue</button>
+  </footer>
+  <script>
+    const box = document.getElementById('ok');
+    const go = document.getElementById('go');
+    box.addEventListener('change', () => { go.disabled = !box.checked; });
+    go.addEventListener('click', () => window.medasr.acceptLicense());
+    document.getElementById('no').addEventListener('click', () => window.medasr.declineLicense());
+  </script>
+</body>
+</html>

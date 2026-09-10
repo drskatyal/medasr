@@ -9,7 +9,8 @@ app/dist/
 app/out/
 
 # Model weights & converted artifacts (gated HAI-DEF license — never commit)
-models/
+models/*
+!models/README.md
 *.onnx
 
 # Generated assets (produced by convert/export_assets.py)

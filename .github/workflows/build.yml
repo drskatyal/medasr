@@ -35,11 +35,16 @@ jobs:
         with:
           node-version: '20'
 
-      # The gated MedASR weights are not in the repo; create an empty models dir
-      # so electron-builder's extraResources copy step doesn't fail. (MedASR /
-      # cleaning / Parakeet weights are fetched at first run, not bundled.)
       - name: Prepare models dir
         run: mkdir -p models
+        shell: bash
+
+      # Bundle MedASR + Qwen + Gemma + Silero into extraResources.
+      - name: Bundle on-device weights
+        working-directory: app
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: node scripts/bundle-weights.js
         shell: bash
 
       # Bundle the small Vosk command model into the installer (optional; if the

@@ -1,0 +1,19 @@
+# Attribution
+
+**Speech-to-text in this app is Google MedASR.**
+
+MedASR is an automated speech recognition model trained for healthcare audio.
+FlowRad Open Source VR runs a local ONNX (optionally distilled / int8) copy of
+that model. We do not substitute another ASR engine.
+
+Please credit:
+
+> Speech recognition by [MedASR](https://huggingface.co/google/medasr)
+> (Google Health AI Developer Foundations).
+
+and keep the HAI-DEF license notice with any redistribution of the weights or
+derivatives (quantized or distilled ONNX).
+
+Optional on-device **cleanup** after you release the mic uses Qwen3-1.7B
+(Apache 2.0) and/or Gemma 4 E4B (Gemma Terms). Those models edit the MedASR
+transcript; they do not transcribe audio.

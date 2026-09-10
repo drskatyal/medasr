@@ -39,6 +39,8 @@ def check_graph_is_clean(onnx_path: str) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", type=Path, default=Path("models/medasr.onnx"))
+    ap.add_argument("--from", dest="ckpt", type=Path, default=None,
+                    help="Optional distill checkpoint from convert/distill.py")
     ap.add_argument("--opset", type=int, default=17)
     ap.add_argument("--dummy-mel-frames", type=int, default=400,
                     help="Dummy time length for tracing (~4s @ 100 frames/s)")
@@ -48,7 +50,26 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
 
     print("Loading model (first run downloads gated weights)...", flush=True)
-    model, _ = _load.load_model_and_processor()
+    if args.ckpt:
+        model, _ = _load.load_model_and_processor()
+        payload = torch.load(args.ckpt, map_location="cpu", weights_only=False)
+        missing, unexpected = model.load_state_dict(payload["state_dict"], strict=False)
+        print(f"Loaded distill ckpt {args.ckpt} missing={len(missing)} unexpected={len(unexpected)}")
+        # Rebuild from student config when layer count differs.
+        n_ck = payload.get("student_layers")
+        if n_ck and n_ck != _load.encoder_layer_count(model):
+            from transformers import AutoModelForCTC
+            cfg = model.config
+            enc = cfg.encoder_config
+            for attr in ("num_hidden_layers", "num_layers", "n_layers"):
+                if hasattr(enc, attr):
+                    setattr(enc, attr, n_ck)
+            model = AutoModelForCTC.from_config(cfg)
+            model.load_state_dict(payload["state_dict"], strict=False)
+            model.eval()
+            model.config._attn_implementation = "eager"
+    else:
+        model, _ = _load.load_model_and_processor()
 
     if not args.no_explicit_pad:
         n = _load.patch_depthwise_explicit_padding(model)

@@ -12,12 +12,13 @@ Anything that needs the actual model runs on your machine — see `RUNBOOK.md`.
 | Phase | State | Notes |
 |-------|-------|-------|
 | 0 — Baseline | **Harness built** (`baseline/`) | WER math validated. Run locally, commit `baseline/results.json`. |
-| 1 — Quantization | **Scripts built** (`convert/quantize.py`) | Dynamic int8 (ship) + static QDQ (production) paths, per Grok's Conformer review. |
-| 2 — ONNX conversion | **Scripts built** (`convert/export_onnx.py`, `_load.py`, `verify_*`) | Export informed by reading the real `Lasr*` source: RoPE/depthwise-conv/BN/LN — all ONNX-friendly. Hub-kernel disable + eager + explicit-pad handled. |
-| 3 — Streaming tuning | **Harness built** (`streaming/stream_harness.py`) | Chunk+overlap+logit-stitch grid; Grok's 2.0s body / 0.8s overlap / discard-14 defaults. |
-| 4 — Electron app | **Scaffold built** (`app/`) | Wispr-Flow-style: global hotkey → mic → on-device ONNX → type-anywhere. Pure-JS log-mel + CTC decode (unit-tested). Not yet run in a real Electron process (needs local `npm install`). |
-| — Distribution | **Server built** (`server/`) | Railway release + `electron-updater` feed server; token-protected uploads. |
-| 5 — Open source | **Blocked / re-scope** | Model weights are HAI-DEF, not Apache 2.0. See `LICENSING_NOTES.md`. |
+| 1 — Quantization | **Scripts built** (`convert/quantize.py`) | Dynamic int8 (ship) + static QDQ (production) paths. |
+| 2 — ONNX conversion | **Scripts built** (`convert/export_onnx.py`) | Teacher + `--from` distilled checkpoint. |
+| 2b — Distill | **Scripts built** (`convert/distill.py`) | Smaller MedASR student; still attributed as MedASR. |
+| 3 — Streaming tuning | **Harness built** (`streaming/stream_harness.py`) | Push-to-talk is the product default (bidirectional CTC). |
+| 4 — Electron app | **MedASR-only, bundled** (`app/`) | No user download. Mic-off cleanup = Qwen (default) or Gemma 4. |
+| — Distribution | **Installer extraResources** | `bundle-weights.js` + first-run HAI-DEF/Gemma/Qwen accept. |
+| 5 — Open source | **Code Apache 2.0; weights HAI-DEF** | See `LICENSING_NOTES.md` + `ATTRIBUTION.md`. |
 
 ### What's verified in-container vs. needs your machine
 - ✅ Verified here: JS syntax (all files), FFT/log-mel correctness (tone lands in

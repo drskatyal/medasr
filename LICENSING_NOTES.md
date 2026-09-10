@@ -27,18 +27,26 @@ license + use restrictions and not present the artifact as unrestricted OSS.
 So the plan's framing — *"ship it fully open source"* — cannot apply to the
 converted weights the way it applies to your conversion code.
 
+## What this installer does
+
+FlowRad **bundles** converted MedASR ONNX (and optional distill) plus Qwen/Gemma
+GGUFs in the desktop installer so clinicians do not download weights. That is
+**redistribution of HAI-DEF model derivatives**. We:
+
+- keep HAI-DEF / Gemma notices in the app (`app/NOTICE.md`, first-run accept)
+- never commit `.onnx` / `.gguf` to git
+- never label MedASR weights as Apache 2.0
+- attribute speech recognition as **Google MedASR** in the UI
+
+Code remains Apache 2.0. Confirm the current HAI-DEF redistribution clause
+before a public download page.
+
 ## What you almost certainly CAN do (verify against the exact terms)
 
-- **Open-source your conversion/streaming/Electron _code_** under Apache 2.0.
-  It contains no weights.
-- Ship the app so it **downloads the weights at first run** from the user's own
-  authenticated HF account (user accepts Google's terms directly). This is the
-  same pattern the plan already recommends for avoiding large files ("model
-  download step / download script") — keep it, and it doubles as the licensing
-  fix: **you never redistribute the weights, the user fetches them.**
-- Publish converted weights **only** in a channel that preserves the HAI-DEF
-  license and gating (e.g. your own gated HF repo carrying the license + NOTICE)
-  — **not** as an unrestricted asset in a public GitHub repo/Release.
+- **Open-source conversion / Electron _code_** under Apache 2.0.
+- Ship a **clinical installer** that includes HAI-DEF derivatives **with**
+  the license, attribution, and a first-run acceptance screen.
+- Keep a gated HF copy of the ONNX for rebuilds (`MEDASR_ONNX_REPO`).
 
 ## What to NOT do until you've confirmed the terms
 

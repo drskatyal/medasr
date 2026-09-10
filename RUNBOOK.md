@@ -33,6 +33,29 @@ files, and `verify_parity.py` printing `PASS` (or a small int8 diff).
 
 ---
 
+## Stage A2 — Distill (optional, speed) ⏱️ GPU
+
+```bash
+python convert/distill.py --train-jsonl data/train.jsonl --out models/medasr.distill.pt
+python convert/export_onnx.py --from models/medasr.distill.pt --out models/medasr.distill.onnx
+python convert/quantize.py --in models/medasr.distill.onnx --out models/medasr.distill.int8.onnx
+```
+
+The app loads `medasr.distill.int8.onnx` first and still shows **Google MedASR**.
+
+---
+
+## Stage E — Ship installers
+
+```bash
+HF_TOKEN=… node app/scripts/bundle-weights.js
+cd app && npm test && npm run dist
+```
+
+Users do **not** download MedASR, Qwen, or Gemma. First launch accepts licenses.
+
+---
+
 ## Stage B — Prove it runs in plain Node ⏱️ ~3 min
 
 ```bash

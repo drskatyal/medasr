@@ -9,6 +9,15 @@ const https = require('https');
 const { app } = require('electron');
 const { downloadFileWithRetry } = require('./download');
 const downloadFile = downloadFileWithRetry;   // all model downloads auto-resume on transient failures
+const models = require('./models');
+
+function bundledModelsDir() {
+  return models.modelSearchDirs()[0] || path.join(__dirname, '..', '..', '..', 'models');
+}
+
+function firstExistingFile(paths) {
+  return models.firstExisting(paths);
+}
 
 function httpsGetJson(url, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -115,6 +124,8 @@ function sttModelDir(engineId) {
 // Silero VAD ONNX (~2MB, MIT) for real-time dictation. Auto-downloaded + cached.
 const SILERO_URL = 'https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.onnx';
 async function ensureVadModel({ onProgress } = {}) {
+  const bundled = firstExistingFile(models.modelSearchDirs().map((d) => path.join(d, 'silero_vad.onnx')));
+  if (bundled) return bundled;
   const dest = path.join(modelsDir(), 'silero_vad.onnx');
   if (fs.existsSync(dest) && fs.statSync(dest).size > 1e5) return dest;
   await downloadFile(SILERO_URL, dest, { onProgress });
@@ -285,9 +296,12 @@ async function ensureAudioModel(id, repo, { onProgress, hfToken } = {}) {
 // redistribution of gated weights. The small text assets (vocab.json, feature
 // config) ship in the app bundle, so only the .onnx is downloaded.
 const MEDASR_FILE = 'medasr.int8.onnx';
-function medasrPath() { return path.join(modelsDir(), MEDASR_FILE); }
+function medasrPath() {
+  return models.resolveModelPath() || path.join(modelsDir(), MEDASR_FILE);
+}
 function isMedasrInstalled() {
-  try { return fs.statSync(medasrPath()).size > 1e6; } catch (e) { return false; }
+  const p = models.resolveModelPath();
+  try { return !!p && fs.statSync(p).size > 1e6; } catch (e) { return false; }
 }
 async function resolveMedasrFile(repo, hfToken) {
   try {
@@ -298,10 +312,11 @@ async function resolveMedasrFile(repo, hfToken) {
   } catch (e) { return MEDASR_FILE; }
 }
 async function ensureMedasr(repo, { hfToken, onProgress } = {}) {
-  const dest = medasrPath();
-  if (isMedasrInstalled()) return dest;
-  if (!repo) throw new Error('MedASR repo not configured — set it in Settings → Advanced');
-  if (!hfToken) throw new Error('a Hugging Face token is required to download the gated MedASR weights');
+  const existing = models.resolveModelPath();
+  if (existing) return existing;
+  const dest = path.join(modelsDir(), MEDASR_FILE);
+  if (!repo) throw new Error('MedASR is missing from the installer. Rebuild with app/scripts/bundle-weights.js');
+  if (!hfToken) throw new Error('MedASR is not bundled. Add the ONNX under models/ or rebuild the installer.');
   const file = await resolveMedasrFile(repo, hfToken);
   const url = `https://huggingface.co/${repo}/resolve/main/${encodeURIComponent(file)}`;
   console.log(`[provision] medasr: downloading ${repo}/${file}`);
@@ -313,7 +328,8 @@ async function ensureMedasr(repo, { hfToken, onProgress } = {}) {
 function localPathFor(id) {
   const entry = CATALOG[id];
   if (!entry) return null;
-  return path.join(modelsDir(), entry.file);
+  return firstExistingFile(models.modelSearchDirs().map((d) => path.join(d, entry.file)))
+    || path.join(modelsDir(), entry.file);
 }
 
 function isInstalled(id) {
@@ -344,5 +360,5 @@ module.exports = {
   ensureVoskModel, voskModelDir, isVoskInstalled,
   setModelsDir, defaultModelsDir, STT_CATALOG, ensureSttModel, isSttInstalled,
   ensureAudioModel, isAudioInstalled, audioPaths,
-  ensureMedasr, isMedasrInstalled, medasrPath,
+  ensureMedasr, isMedasrInstalled, medasrPath, bundledModelsDir,
 };

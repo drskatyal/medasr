@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('medasr', {
   getCommands: () => ipcRenderer.invoke('get-commands'),
   getStatus: () => ipcRenderer.invoke('get-status'),
   setup: (what, id) => ipcRenderer.invoke('setup', what, id),
+  acceptLicense: () => ipcRenderer.send('license-accept'),
+  declineLicense: () => ipcRenderer.send('license-decline'),
   log: (msg) => ipcRenderer.send('renderer-log', String(msg)),
   toggle: () => ipcRenderer.send('toggle-record'),
   moveBy: (dx, dy) => ipcRenderer.send('move-widget', { dx, dy }),

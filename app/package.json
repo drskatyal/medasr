@@ -2,13 +2,15 @@
   "name": "flowrad-vr",
   "productName": "FlowRad Open Source VR",
   "version": "0.1.0",
-  "description": "Local, private medical dictation (voice recognition). Push a hotkey, speak, and it types into any app. On-device MedASR + optional local cleanup LLM. FlowRad, open source.",
+  "description": "Local, private medical dictation. On-device Google MedASR; Qwen/Gemma cleanup when the mic stops. FlowRad, open source.",
   "main": "src/main/index.js",
   "author": "",
   "license": "Apache-2.0",
   "scripts": {
     "start": "electron .",
     "prepare:vosk": "node scripts/fetch-vosk.js",
+    "prepare:weights": "node scripts/bundle-weights.js",
+    "test": "node --test src/main/runtime.test.js src/main/features.test.js",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
@@ -35,9 +37,9 @@
     "icon": "build/icon.png",
     "npmRebuild": true,
     "buildDependenciesFromSource": false,
-    "files": ["src/**/*", "assets/**/*", "!**/*.md"],
+    "files": ["src/**/*", "assets/**/*", "NOTICE.md"],
     "extraResources": [
-      { "from": "../models", "to": "models", "filter": ["*.onnx", "silero_vad.onnx", "vosk-model-small-en-us-0.15/**"] }
+      { "from": "../models", "to": "models", "filter": ["*.onnx", "*.gguf", "NOTICE.txt", "silero_vad.onnx"] }
     ],
     "asarUnpack": [
       "**/node_modules/onnxruntime-node/**",

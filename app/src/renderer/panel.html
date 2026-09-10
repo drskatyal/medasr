@@ -124,7 +124,7 @@
 <body>
   <header>
     <h1>FlowRad Open Source VR</h1>
-    <p>Private, on-device medical dictation · all processing stays local</p>
+    <p>On-device dictation · speech recognition by <b>Google MedASR</b> · cleanup on mic-off</p>
   </header>
 
   <nav class="tabs">
@@ -137,13 +137,15 @@
   <main>
     <!-- ===================== MODELS ===================== -->
     <section class="panel active" id="tab-models">
-      <div class="section-label">Speech-to-text engine</div>
+      <div class="section-label">Speech-to-text — Google MedASR</div>
       <div class="card" id="sttList"></div>
+      <div class="hint" style="margin:-6px 2px 16px">MedASR (<code>google/medasr</code>) is the only transcriber. Weights
+        ship in the installer (HAI-DEF). A distilled int8 graph is used when present. See ATTRIBUTION.md.</div>
 
-      <div class="section-label">Cleaning — optional, corrects &amp; formats</div>
+      <div class="section-label">Cleaning — runs when you stop the mic</div>
       <div class="card" id="cleanList"></div>
-      <div class="hint" style="margin:-6px 2px 16px">Nothing downloads on its own — pick a model and press <b>Download</b>. Heavier
-        models are more accurate but slower/larger; if one is too big for your PC it may fail to load, so start small.</div>
+      <div class="hint" style="margin:-6px 2px 16px">After MedASR transcribes, Qwen (default) or Gemma 4 edits the
+        <b>text</b> only. Both ship in the installer — no download. Turn <b>Off</b> for the raw transcript.</div>
 
       <div class="section-label">Other</div>
       <div class="card">
@@ -154,7 +156,7 @@
           <div class="pbar" id="pbVad"><i></i><em>0%</em></div>
         </div>
         <div class="item">
-          <div class="item-head"><span class="item-title">Always-on commands · Vosk</span>
+          <div class="item-head"><span class="item-title">Always-on commands (optional, not MedASR)</span>
             <button class="btn" id="btnDlCmd" style="display:none">Download</button></div>
           <div class="item-sub" id="stCmd">…</div>
           <div class="pbar" id="pbCmd"><i></i><em>0%</em></div>
@@ -194,7 +196,7 @@
             <div class="t-sub">“open chrome”, “show desktop”, “stop dictation”, and your templates.</div></div></div>
         <div class="toggle"><input type="checkbox" id="alwaysOnCommands">
           <div><div class="t-label">Always listen for commands</div>
-            <div class="t-sub">Hands-free “start/stop dictation” with no hotkey (tiny background recognizer keeps the mic warm).</div></div></div>
+            <div class="t-sub">Hands-free “start/stop dictation” only. Medical transcription is always MedASR.</div></div></div>
       </div>
 
       <div class="section-label">Real-time mode</div>
@@ -272,17 +274,15 @@
     <!-- ===================== ADVANCED ===================== -->
     <section class="panel" id="tab-advanced">
       <div class="field">
-        <label for="hfToken">Hugging Face token (for MedASR &amp; MedGemma)</label>
-        <input type="password" id="hfToken" placeholder="hf_… — paste your Hugging Face access token">
-        <div class="hint">MedASR and MedGemma are license-gated. Create a free token at
-          <code>huggingface.co/settings/tokens</code>, accept each model's license on its Hugging Face page,
-          then paste the token here. It's stored locally and only used to download the weights you choose.</div>
+        <label for="hfToken">Hugging Face token (dev / missing-bundle fallback)</label>
+        <input type="password" id="hfToken" placeholder="hf_… — not needed for a normal install">
+        <div class="hint">Release builds ship MedASR, Qwen, and Gemma 4. A token is only used if those files are
+          missing from the installer (local development).</div>
       </div>
       <div class="field">
-        <label for="medasrRepo">MedASR model repo</label>
+        <label for="medasrRepo">MedASR ONNX repo (dev fallback)</label>
         <input type="text" id="medasrRepo" placeholder="e.g. drskatyal/medasr-onnx">
-        <div class="hint">Gated Hugging Face repo hosting the converted MedASR (int8 ONNX). Usually leave as the
-          default — change only if you host your own copy.</div>
+        <div class="hint">Ignored when <code>models/medasr*.onnx</code> is already in the app bundle.</div>
       </div>
       <div class="field">
         <label for="modelsDir">Models folder</label>
@@ -300,8 +300,7 @@
       <div class="field">
         <label for="modelPath">Cleaning model file (optional override)</label>
         <input type="text" id="modelPath" placeholder="Leave blank — auto-downloaded on first use">
-        <div class="hint">The cleaning model downloads automatically the first time it's enabled and is cached.
-          Only set this to use your own GGUF file.</div>
+        <div class="hint">Qwen and Gemma ship in the installer. Only set this to use your own GGUF.</div>
       </div>
       <div class="section-label">Performance</div>
       <div class="card">
@@ -322,6 +321,7 @@
   <footer>
     <button class="btn" id="save">Save</button>
     <span id="saved">Saved ✓</span>
+    <span class="hint" style="margin-left:auto">STT: Google MedASR (HAI-DEF)</span>
   </footer>
 
   <script src="./panel.js"></script>

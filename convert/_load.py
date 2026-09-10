@@ -31,6 +31,14 @@ ENCODER_FRAMES_PER_S = MEL_FRAMES_PER_S // SUBSAMPLE_FACTOR  # 25
 BLANK_ID = 0  # pad_token_id == blank for CTC
 
 
+def encoder_layer_count(model) -> int:
+    enc = model.config.encoder_config
+    for attr in ("num_hidden_layers", "num_layers", "n_layers"):
+        if hasattr(enc, attr):
+            return int(getattr(enc, attr))
+    raise RuntimeError("cannot read MedASR encoder layer count")
+
+
 def load_model_and_processor(model_id: str = MODEL_ID):
     from transformers import AutoModelForCTC, AutoProcessor
 

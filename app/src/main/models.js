@@ -1,11 +1,9 @@
 'use strict';
 // Resolves model + asset paths and a tiny JSON settings store.
 //
-// Model weights are NOT bundled in the public repo (HAI-DEF gated license --
-// see LICENSING_NOTES.md). They are produced by the conversion pipeline
-// (convert/*.py) and placed in the repo's ../models dir for `npm start`, or
-// packaged via electron-builder extraResources for a build. If the model is
-// missing, the app shows setup instructions instead of crashing.
+// Weights are not committed to git (HAI-DEF). The installer bundles them via
+// extraResources (see app/scripts/bundle-weights.js). Prefer a distilled int8
+// graph when present. First launch still requires HAI-DEF license acceptance.
 
 const fs = require('fs');
 const path = require('path');
@@ -16,15 +14,26 @@ function firstExisting(paths) {
   return null;
 }
 
-function resolveModelPath() {
-  const names = ['medasr.int8.onnx', 'medasr.onnx'];
+function modelSearchDirs() {
   const dirs = [
-    process.resourcesPath && path.join(process.resourcesPath, 'models'), // packaged
-    path.join(__dirname, '..', '..', '..', 'models'),                    // dev (repo/models)
-    path.join(app.getPath('userData'), 'models'),                        // user-provided
-  ].filter(Boolean);
+    process.resourcesPath && path.join(process.resourcesPath, 'models'),
+    path.join(__dirname, '..', '..', '..', 'models'),
+  ];
+  try { dirs.push(path.join(app.getPath('userData'), 'models')); } catch (e) { /* app not ready */ }
+  return dirs.filter(Boolean);
+}
+
+function resolveModelPath() {
+  // Distilled student first (faster), then full int8, then fp32.
+  const names = ['medasr.distill.int8.onnx', 'medasr.int8.onnx', 'medasr.onnx'];
   const candidates = [];
-  for (const d of dirs) for (const n of names) candidates.push(path.join(d, n));
+  for (const d of modelSearchDirs()) for (const n of names) candidates.push(path.join(d, n));
+  return firstExisting(candidates);
+}
+
+function resolveBundledFile(name) {
+  const candidates = [];
+  for (const d of modelSearchDirs()) candidates.push(path.join(d, name));
   return firstExisting(candidates);
 }
 
@@ -49,23 +58,24 @@ const DEFAULTS = {
   voiceCommands: true,   // spoken punctuation/formatting ("period", "new paragraph", …)
   voiceNav: true,        // spoken navigation ("go to liver", "find <term>") via Find
   voiceActions: true,    // spoken commands ("open chrome", "show desktop", "stop dictation") + macros
-  alwaysOnCommands: false, // Vosk background listener (opt-in — downloads a model + keeps the mic warm; off by default)
+  alwaysOnCommands: false, // optional Vosk command listener only — never used for medical transcription
   macros: [              // user-editable "trigger = expansion" templates (typed on match)
     'normal chest = No acute cardiopulmonary process. The heart size is normal. The lungs are clear. No pleural effusion or pneumothorax.',
     'normal abdomen = No acute abdominal abnormality. The visualized bowel is unremarkable. No free air or free fluid.',
   ].join('\n'),
   pacsCommand: '',       // custom app/command launched by "open pacs" (exe path on Windows, .app name on macOS)
-  // --- cleanup LLM (OFF by default for latency; when enabled, the weights
-  //     auto-download once and cache — no manual setup) ---
-  cleanupEnabled: false,       // run the local cleanup LLM on the transcript
-  cleanupModel: 'qwen3-1.7b',  // default model (fast, disciplined; downloads on first enable)
+  // Cleanup runs when the mic stops (push-to-talk) or when a real-time session
+  // ends. Models ship in the installer (Qwen default, Gemma optional).
+  cleanupEnabled: true,
+  cleanupModel: 'qwen3-1.7b',
+  licenseAccepted: false,      // first-run HAI-DEF + Gemma + Qwen acceptance
   llmModelPath: '',            // optional explicit GGUF override; else auto-provisioned
   modelsDirOverride: '',       // custom folder to store downloaded models (e.g. a drive with space)
   hfToken: '',                 // Hugging Face token — authorizes downloads of gated weights (MedASR, MedGemma) under the user's own license acceptance
   medasrRepo: 'drskatyal/medasr-onnx', // gated HF repo hosting the converted MedASR int8 ONNX (maintainer-controlled)
   gpuAccel: 'auto',            // cleaning-model GPU offload: 'auto' (use GPU if available) | 'off' (force CPU)
-  llamaServerPath: '',         // path to a llama-server binary (for single-call audio STT engines)
-  sttEngine: 'medasr',         // 'medasr' | 'gemma4-audio' (future) | ...
+  llamaServerPath: '',
+  sttEngine: 'medasr',         // MedASR only
   // --- real-time (VAD, Silero) dictation: hands-free, auto-segment on pauses ---
   realtimeMode: false,         // press hotkey once, speak; pauses end each utterance
   vadProbThreshold: 0.5,       // Silero speech-probability cutoff (0.35–0.6 typical)
@@ -88,4 +98,7 @@ function saveSettings(s) {
   fs.writeFileSync(settingsPath(), JSON.stringify(s, null, 2));
 }
 
-module.exports = { resolveModelPath, resolveAssetsDir, loadSettings, saveSettings, DEFAULTS };
+module.exports = {
+  resolveModelPath, resolveAssetsDir, resolveBundledFile, modelSearchDirs,
+  loadSettings, saveSettings, DEFAULTS, firstExisting,
+};
